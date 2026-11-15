@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 应用外壳：左侧导航 + 顶部三层命令栏 + 内容区 + 右侧详情面板 + 状态栏
+/// 应用外壳：左侧导航 + 顶部命令栏 + 内容区 + 右侧详情面板 + 状态栏
 /// 布局规格见 PRODUCT_UX_DESIGN 4.1
 struct RootView: View {
     @EnvironmentObject var model: AppModel
@@ -15,13 +15,14 @@ struct RootView: View {
                 )
         } detail: {
             VStack(spacing: 0) {
-                CommandBar()
-                Divider()
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 StatusBar()
             }
             .background(Tokens.appBackground)
+            // 命令栏挂在原生工具栏上：与红绿灯同一行，且点击事件由 AppKit 托管，不会被窗口拖拽区拦截
+            .toolbar { commandToolbar }
+            .toolbarBackground(Tokens.surfaceBackground, for: .windowToolbar)
             .inspector(isPresented: $model.inspectorPresented) {
                 InspectorPanel()
                     .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
@@ -61,6 +62,75 @@ struct RootView: View {
         } message: {
             Text(deletionMessage)
         }
+    }
+
+    /// 命令栏只服务于「检索资产 / 发起连接」；模板、设置、帮助页各有页头，不再重复占位
+    private var showsCommandBar: Bool {
+        switch model.nav {
+        case .assets, .favorites, .recent, .group, .workspace: return true
+        case .templates, .settings, .help: return false
+        }
+    }
+
+    // MARK: - 原生工具栏（命令栏）
+
+    @ToolbarContentBuilder
+    private var commandToolbar: some ToolbarContent {
+        if showsCommandBar {
+            ToolbarItemGroup(placement: .navigation) {
+                CommandSearchField()
+                CommandViewModeControl()
+                Button {
+                    model.editorRequest = EditorRequest(asset: Asset(), isNew: true)
+                } label: {
+                    Label(L("新增资产"), systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            ToolbarItemGroup(placement: .primaryAction) {
+                CommandParametersButton()
+                    .controlSize(.small)
+                Button {
+                    model.probeSelected()
+                } label: {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                }
+                .controlSize(.small)
+                .help(L("批量探测"))
+                .accessibilityLabel(L("批量探测"))
+
+                Button {
+                    model.inspectorPresented.toggle()
+                } label: {
+                    Image(systemName: "sidebar.right")
+                }
+                .controlSize(.small)
+                .help(model.inspectorPresented ? L("收起右侧详情面板") : L("展开右侧详情面板"))
+                .accessibilityLabel(L("资产详情"))
+
+                CommandColumnSettingsButton()
+                    .controlSize(.small)
+                CommandOverflowMenu()
+                    .controlSize(.small)
+
+                Button {
+                    model.requestDelete(model.selection)
+                } label: {
+                    Label(deleteTitle, systemImage: "trash")
+                }
+                .controlSize(.small)
+                .disabled(model.selection.isEmpty)
+                .help(L("删除选中资产"))
+            }
+        }
+    }
+
+    private var deleteTitle: String {
+        model.selection.isEmpty
+            ? L("删除")
+            : L("删除 {n}").replacingOccurrences(of: "{n}", with: "\(model.selection.count)")
     }
 
     /// 内容区路由：四大列表视图共用资产中心，模板与帮助各自成页

@@ -84,6 +84,10 @@ struct RemotePilotApp: App {
                 .frame(minWidth: 1560, minHeight: 740)
         }
         .defaultSize(width: 1720, height: 1000)
+        // 紧凑统一工具栏：红绿灯与命令栏同一行，省掉独立标题栏高度；
+        // 命令栏控件由 NSToolbarItem 托管，点击不会被窗口拖拽区拦截
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unifiedCompact(showsTitle: false))
         .commands { commands }
     }
 

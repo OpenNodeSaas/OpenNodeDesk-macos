@@ -36,7 +36,7 @@ enum ClientDetector {
         return fileManager.fileExists(atPath: path)
     }
 
-    /// RDP：macOS 用 Microsoft Windows App（原 Microsoft Remote Desktop）
+    /// RDP：默认 Microsoft Windows App；FreeRDP 仅作为可选手动指定项
     static func rdpCandidates() -> [CarrierClient] {
         var result: [CarrierClient] = []
         for bundleID in ["com.microsoft.rdc.macos"] {
@@ -47,6 +47,12 @@ enum ClientDetector {
         for path in ["/Applications/Windows App.app", "/Applications/Microsoft Remote Desktop.app"] {
             guard isValid(path: path), !result.contains(where: { $0.path == path }) else { continue }
             result.append(CarrierClient(id: path, name: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent, path: path, kind: .application))
+        }
+        // 命令行 FreeRDP：需要免密时可手动指定，默认不抢占 Windows App
+        for path in ["/opt/homebrew/bin/sdl-freerdp", "/usr/local/bin/sdl-freerdp"] {
+            guard isValid(path: path) else { continue }
+            result.append(CarrierClient(id: path, name: "FreeRDP", path: path, kind: .binary))
+            break
         }
         return result
     }

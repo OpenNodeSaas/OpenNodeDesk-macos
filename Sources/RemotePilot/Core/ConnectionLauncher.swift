@@ -115,6 +115,13 @@ enum ConnectionLauncher {
         guard let carrier = ClientDetector.resolve(.rdp, preferredPath: settings.rdpClientPath) else {
             throw LaunchError.carrierMissing(.rdp)
         }
+
+        // FreeRDP 是命令行客户端：可直接带入钥匙串中的密码，避免每次弹窗输入
+        if case .binary = carrier.kind {
+            try launchFreeRDP(carrier: carrier, asset: asset, plan: plan)
+            return
+        }
+
         let file = rdpFileURL(for: asset)
         let content = rdpContent(asset: asset, plan: plan, extraArgs: settings.rdpClientArgs)
         do {
@@ -132,11 +139,48 @@ enum ConnectionLauncher {
             } catch {
                 throw LaunchError.launchFailed(error.localizedDescription)
             }
+            // Windows App 的密码框没有保存选项：凭据存在钥匙串时点连后自动填入
+            RDPAutoFill.start(password: plan.password ?? "")
         case .binary, .urlScheme:
             // 非 .app 客户端：直接把 .rdp 文件交给系统默认处理程序
             if !NSWorkspace.shared.open(file) {
                 throw LaunchError.launchFailed(L("系统未注册 .rdp 文件的处理程序"))
             }
+        }
+    }
+
+    /// FreeRDP 启动参数：地址、账号、钥匙串密码、分辨率与重定向
+    private static func launchFreeRDP(carrier: CarrierClient, asset: Asset, plan: LaunchPlan) throws {
+        var args: [String] = ["/v:\(asset.host):\(asset.port)"]
+        if !plan.username.isEmpty { args.append("/u:\(plan.username)") }
+        if let password = plan.password, !password.isEmpty { args.append("/p:\(password)") }
+        // 自签证书的 Windows 主机极常见，跳过证书确认才能自动进入桌面
+        args.append("/cert:ignore")
+        args.append("+dynamic-resolution")
+
+        switch plan.windowMode {
+        case .fullscreen:
+            args.append("/f")
+        case .windowed, .tabbed, .smallWindow:
+            let width = plan.width > 0 ? plan.width : 1920
+            let height = plan.height > 0 ? plan.height : 1080
+            args.append("/size:\(width)x\(height)")
+        }
+
+        args.append("/bpp:\(plan.colorDepth.rawValue)")
+        if plan.redirects.clipboard { args.append("/clipboard") }
+        if plan.redirects.audio { args.append("/sound") }
+        if plan.redirects.drives {
+            args.append("/drive:home,\(FileManager.default.homeDirectoryForCurrentUser.path)")
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: carrier.path)
+        process.arguments = args
+        do {
+            try process.run()
+        } catch {
+            throw LaunchError.launchFailed(error.localizedDescription)
         }
     }
 

@@ -123,7 +123,7 @@ struct AssetEditorView: View {
 
                     fieldRow(L("端口")) {
                         VStack(alignment: .leading, spacing: Tokens.gapXS) {
-                            TextField(L("端口"), value: $draft.port, format: .number)
+                            TextField(L("端口"), value: $draft.port, format: .number.grouping(.never))
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 110)
                             if !isPortValid {
@@ -240,11 +240,11 @@ struct AssetEditorView: View {
 
                         fieldRow(L("分辨率 宽 × 高")) {
                             HStack(spacing: Tokens.gapS) {
-                                TextField("", value: $draft.displayWidth, format: .number)
+                                TextField("", value: $draft.displayWidth, format: .number.grouping(.never))
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 80)
                                 Text("×").foregroundStyle(Tokens.mutedForeground)
-                                TextField("", value: $draft.displayHeight, format: .number)
+                                TextField("", value: $draft.displayHeight, format: .number.grouping(.never))
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 80)
                             }

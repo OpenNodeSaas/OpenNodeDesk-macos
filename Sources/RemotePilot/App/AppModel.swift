@@ -485,6 +485,14 @@ final class AppModel: ObservableObject {
                 openSession(for: asset, carrier: .embeddedTerminal)
             }
         case .rdp, .vnc:
+            // 已勾选记住密码却读不到（钥匙串授权被拒或条目丢失）时，先补录一次再连接
+            if asset.rememberPassword, password(for: asset) == nil {
+                credentialRequest = CredentialRequest(
+                    asset: asset,
+                    failureMessage: L("无法从系统钥匙串读取已保存的密码，请重新输入后保存。")
+                )
+                return
+            }
             let session = openSession(for: asset, carrier: .externalClient(name: L("承载客户端")))
             launchExternal(asset: asset, sessionID: session.id)
         }

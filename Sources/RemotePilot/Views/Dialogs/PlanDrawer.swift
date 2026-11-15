@@ -82,6 +82,7 @@ struct PlanDrawer: View {
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, Tokens.gapXL)
         .padding(.vertical, Tokens.gapL)
@@ -290,11 +291,11 @@ struct PlanDrawer: View {
 
                 row(L("分辨率 宽 × 高")) {
                     HStack(spacing: Tokens.gapS) {
-                        TextField("", value: widthBinding, format: .number)
+                        TextField("", value: widthBinding, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
                         Text("×").foregroundStyle(Tokens.mutedForeground)
-                        TextField("", value: heightBinding, format: .number)
+                        TextField("", value: heightBinding, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
                     }

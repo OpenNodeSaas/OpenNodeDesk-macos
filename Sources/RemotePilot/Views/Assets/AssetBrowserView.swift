@@ -1,30 +1,17 @@
 import SwiftUI
 
-/// 资产中心内容区：第三层命令栏（分组徽章 + 批量探测）+ 到期汇总 + 表格 / 宫格
+/// 资产中心内容区：分组筛选条 + 到期汇总 + 表格 / 宫格
+/// 批量探测与详情面板入口已上收到顶部命令栏，此处只保留内容相关控件
 struct AssetBrowserView: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: Tokens.gapM) {
-                GroupBadgeBar(groups: model.groups, activeGroup: model.activeGroupFilter) { group in
-                    model.selectGroup(group)
-                }
-                Spacer(minLength: Tokens.gapM)
-                Button(L("批量探测")) {
-                    model.probeSelected()
-                }
-                .help(L("对选中资产或全部资产发起可达性检测"))
-
-                Button {
-                    model.inspectorPresented.toggle()
-                } label: {
-                    Label(L("资产详情"), systemImage: "sidebar.right")
-                }
-                .help(model.inspectorPresented ? L("收起右侧详情面板") : L("展开右侧详情面板"))
+            GroupBadgeBar(groups: model.groups, activeGroup: model.activeGroupFilter) { group in
+                model.selectGroup(group)
             }
             .padding(.horizontal, Tokens.gapL)
-            .padding(.vertical, Tokens.gapM)
+            .padding(.vertical, Tokens.gapS)
 
             if !model.warningAssets.isEmpty {
                 ExpirySummaryBar(warningAssets: model.warningAssets, expanded: $model.expiryBarExpanded) { asset in

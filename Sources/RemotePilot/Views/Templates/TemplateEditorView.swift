@@ -91,7 +91,7 @@ struct TemplateEditorView: View {
                     }
 
                     fieldRow(L("端口")) {
-                        TextField(L("端口"), value: $draft.port, format: .number)
+                        TextField(L("端口"), value: $draft.port, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 110)
                     }
@@ -167,11 +167,11 @@ struct TemplateEditorView: View {
                         fieldRow(L("窗口大小")) {
                             VStack(alignment: .leading, spacing: Tokens.gapXS) {
                                 HStack(spacing: Tokens.gapS) {
-                                    TextField("", value: $draft.sshWindowWidth, format: .number)
+                                    TextField("", value: $draft.sshWindowWidth, format: .number.grouping(.never))
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 80)
                                     Text("×").foregroundStyle(Tokens.mutedForeground)
-                                    TextField("", value: $draft.sshWindowHeight, format: .number)
+                                    TextField("", value: $draft.sshWindowHeight, format: .number.grouping(.never))
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 80)
                                 }
