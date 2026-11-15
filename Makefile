@@ -1,6 +1,8 @@
-APP_NAME := RemotePilot
+# 显示名（.app 包名 / 可执行名）。内部标识保持不变：
+# BUNDLE_ID 与数据目录沿用旧名，保证升级后本地资产与钥匙串密码不失效。
+APP_NAME := OpenNodeDesk
 BUNDLE_ID := com.remotepilot.macos
-VERSION := 1.0.0
+VERSION := 2.3.0
 CONFIG := release
 BIN := .build/$(CONFIG)/$(APP_NAME)
 APP_DIR := dist/$(APP_NAME).app

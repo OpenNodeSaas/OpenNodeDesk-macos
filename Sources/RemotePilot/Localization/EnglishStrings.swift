@@ -351,6 +351,7 @@ extension Localization {
 
         // MARK: - 意见反馈（FeedbackSheet）
         "意见反馈": "Feedback",
+        "更多": "More",
         "欢迎通过开源仓库或邮件反馈问题与建议；若本机缺少邮件客户端，可复制下方全文后自行发送。": "Please report issues and suggestions via the open-source repository or email; if this machine has no mail client, copy the full text below and send it yourself.",
         "开源仓库": "Repository",
         "支持邮箱": "Support email",
@@ -371,6 +372,7 @@ extension Localization {
         "暂无分组": "No groups",
         "服务器分组": "Server Groups",
         "返回资产中心": "Back to Assets",
+        "macOS 版": "macOS",
         "设置": "Settings",
         "展开导航": "Expand navigation",
         "收起导航": "Collapse navigation",

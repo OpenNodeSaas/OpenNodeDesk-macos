@@ -9,9 +9,9 @@ struct RootView: View {
         NavigationSplitView {
             SidebarView()
                 .navigationSplitViewColumnWidth(
-                    min: model.settings.sidebarCollapsed ? 72 : 200,
-                    ideal: model.settings.sidebarCollapsed ? 72 : 232,
-                    max: model.settings.sidebarCollapsed ? 72 : 300
+                    min: model.settings.sidebarCollapsed ? 76 : 200,
+                    ideal: model.settings.sidebarCollapsed ? 76 : 232,
+                    max: model.settings.sidebarCollapsed ? 76 : 300
                 )
         } detail: {
             VStack(spacing: 0) {

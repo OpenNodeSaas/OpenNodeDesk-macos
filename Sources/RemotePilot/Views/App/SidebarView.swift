@@ -1,6 +1,9 @@
 import SwiftUI
 
-/// 左侧导航：四大常用视图 + 分组 + 模板 + 设置 + 帮助，底部常驻主题/语言/反馈
+/// 左侧导航：自绘 VStack（弃用 List，避免收起态下 List 的内置行高/分隔线/箭头占位导致布局异常）
+///
+/// 结构：品牌区 | 导航区（ScrollView）| 底部工具条
+/// 收起态：仅图标列，行高统一 32px，底部工具条收敛为「收起按钮 + 溢出菜单」
 struct SidebarView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage("rpp.sidebar.groupsExpanded") private var groupsExpanded = true
@@ -8,192 +11,229 @@ struct SidebarView: View {
     /// 收起态：仅保留图标列，所有文字标签同步隐藏
     private var isCollapsed: Bool { model.settings.sidebarCollapsed }
 
-    private var navBinding: Binding<NavSection?> {
-        Binding(
-            get: { model.nav },
-            set: { if let new = $0 { model.nav = new } }
-        )
-    }
-
     var body: some View {
-        List(selection: navBinding) {
-            Section {
-                row(.assets, badge: model.assets.count)
-                row(.workspace, badge: model.workspaceSessions.isEmpty ? nil : model.workspaceSessions.count)
-                row(.favorites, badge: model.assets.filter { $0.isFavorite }.count)
-                row(.recent, badge: model.assets.filter { $0.lastConnectedAt != nil }.count)
-            }
-
-            Section {
-                DisclosureGroup(isExpanded: $groupsExpanded) {
-                    ForEach(model.groups, id: \.name) { group in
-                        groupRow(group)
-                    }
-                    if model.groups.isEmpty && !isCollapsed {
-                        Text(L("暂无分组")).font(.system(size: 11)).foregroundStyle(Tokens.mutedForeground)
-                    }
-                } label: {
-                    if isCollapsed {
-                        Image(systemName: "square.stack.3d.up").frame(maxWidth: .infinity)
-                    } else {
-                        Label(L("服务器分组"), systemImage: "square.stack.3d.up")
-                    }
-                }
-            }
-
-            Section {
-                row(.templates, badge: model.templates.count)
-                row(.settings, badge: nil)
-                row(.help, badge: nil)
-            }
-        }
-        .listStyle(.sidebar)
-        .safeAreaInset(edge: .top) { brandBar }
-        .safeAreaInset(edge: .bottom) { bottomBar }
-    }
-
-    /// 品牌区：点击回首页；右侧为收起/展开入口
-    private var brandBar: some View {
         VStack(spacing: 0) {
-            HStack(spacing: Tokens.gapS) {
-                Button {
-                    model.nav = .assets
-                    model.searchText = ""
-                } label: {
-                    HStack(spacing: Tokens.gapM) {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Tokens.accent)
-                        if !isCollapsed {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text("RemotePilot").font(.system(size: 13, weight: .semibold))
-                                Text("RemoteOps v2.0").font(.system(size: 10)).foregroundStyle(Tokens.subtleForeground)
-                            }
-                        }
-                        if !isCollapsed { Spacer(minLength: 0) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: isCollapsed ? .center : .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(L("返回资产中心"))
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        model.settings.sidebarCollapsed.toggle()
-                    }
-                    model.saveSettings()
-                } label: {
-                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.borderless)
-                .help(isCollapsed ? L("展开导航") : L("收起导航"))
-            }
-            .padding(.horizontal, isCollapsed ? Tokens.gapS : Tokens.gapL)
-            .padding(.vertical, Tokens.gapM)
+            brandBar
             Divider()
+            ScrollView {
+                VStack(spacing: Tokens.gapXS) {
+                    navItem(.assets, badge: model.assets.count)
+                    navItem(.workspace, badge: model.workspaceSessions.isEmpty ? nil : model.workspaceSessions.count)
+                    navItem(.favorites, badge: model.assets.filter { $0.isFavorite }.count)
+                    navItem(.recent, badge: model.assets.filter { $0.lastConnectedAt != nil }.count)
+                    groupsSection
+                    navItem(.templates, badge: model.templates.count)
+                    navItem(.settings, badge: nil)
+                    navItem(.help, badge: nil)
+                }
+                .padding(Tokens.gapS)
+            }
+            Divider()
+            bottomBar
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Tokens.sidebarBackground)
     }
 
-    @ViewBuilder
-    private func groupRow(_ group: (name: String, count: Int)) -> some View {
-        if isCollapsed {
-            Image(systemName: "folder")
-                .frame(maxWidth: .infinity)
-                .tag(NavSection.group(group.name))
-                .help(group.name.isEmpty ? L("未分组") : group.name)
-        } else {
-            Label {
-                HStack {
-                    Text(group.name.isEmpty ? L("未分组") : group.name)
-                    Spacer()
-                    Text("\(group.count)").foregroundStyle(Tokens.mutedForeground).font(.system(size: 11))
+    // MARK: - 品牌区
+
+    private var brandBar: some View {
+        Button {
+            model.nav = .assets
+            model.searchText = ""
+        } label: {
+            HStack(spacing: Tokens.gapS) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Tokens.accent)
+                if !isCollapsed {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("OpenNodeDesk").font(.system(size: 13, weight: .semibold))
+                        Text(L("macOS 版")).font(.system(size: 10)).foregroundStyle(Tokens.subtleForeground)
+                    }
+                    Spacer(minLength: 0)
                 }
-            } icon: {
-                Image(systemName: "folder")
             }
-            .tag(NavSection.group(group.name))
+            .frame(maxWidth: .infinity, alignment: isCollapsed ? .center : .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .padding(.horizontal, isCollapsed ? Tokens.gapS : Tokens.gapL)
+        .padding(.vertical, Tokens.gapM)
+        .help(L("返回资产中心"))
     }
 
+    // MARK: - 导航项
+
     @ViewBuilder
-    private func row(_ section: NavSection, badge: Int?) -> some View {
-        if isCollapsed {
-            Image(systemName: section.symbol)
-                .frame(maxWidth: .infinity)
-                .tag(section)
-                .help(section.title)
-        } else {
-            Label {
-                HStack {
+    private func navItem(_ section: NavSection, badge: Int?) -> some View {
+        let isActive = model.nav == section
+        Button {
+            model.nav = section
+        } label: {
+            HStack(spacing: Tokens.gapS) {
+                Image(systemName: section.symbol)
+                    .font(.system(size: 14, weight: isActive ? .semibold : .regular))
+                    .frame(width: 18, height: 18)
+                if !isCollapsed {
                     Text(section.title)
-                    Spacer()
+                        .font(.system(size: 13))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
                     if let badge, badge > 0 {
                         Text("\(badge)")
                             .font(.system(size: 11))
                             .foregroundStyle(Tokens.mutedForeground)
                     }
                 }
-            } icon: {
-                Image(systemName: section.symbol)
             }
-            .tag(section)
-            .help(section.title)
+            .frame(maxWidth: .infinity, alignment: isCollapsed ? .center : .leading)
+            .padding(.horizontal, isCollapsed ? 0 : Tokens.gapS)
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: Tokens.controlRadius, style: .continuous)
+                    .fill(isActive ? Tokens.selectedRow : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(section.title)
+    }
+
+    // MARK: - 分组区（可展开/收起）
+
+    private var groupsSection: some View {
+        VStack(spacing: Tokens.gapXS) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { groupsExpanded.toggle() }
+            } label: {
+                HStack(spacing: Tokens.gapS) {
+                    if !isCollapsed {
+                        Image(systemName: groupsExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Tokens.mutedForeground)
+                            .frame(width: 12)
+                    }
+                    Image(systemName: "square.stack.3d.up")
+                        .font(.system(size: 14))
+                        .frame(width: 18, height: 18)
+                    if !isCollapsed {
+                        Text(L("服务器分组")).font(.system(size: 13))
+                        Spacer(minLength: 0)
+                        Text("\(model.groups.count)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Tokens.mutedForeground)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: isCollapsed ? .center : .leading)
+                .padding(.horizontal, isCollapsed ? 0 : Tokens.gapS)
+                .frame(height: 32)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L("服务器分组"))
+
+            if groupsExpanded {
+                if model.groups.isEmpty {
+                    if !isCollapsed {
+                        Text(L("暂无分组"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Tokens.mutedForeground)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, Tokens.gapL + 18)
+                            .padding(.vertical, Tokens.gapXS)
+                    }
+                } else {
+                    ForEach(model.groups, id: \.name) { group in
+                        navItem(.group(group.name), badge: group.count)
+                            .padding(.leading, isCollapsed ? 0 : Tokens.gapM)
+                    }
+                }
+            }
         }
     }
 
-    private var bottomBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: Tokens.gapM) {
-                Menu {
-                    Picker(L("主题"), selection: themeBinding) {
-                        ForEach(ThemeMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .id(model.settings.language)
-                } label: {
-                    Image(systemName: themeSymbol)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .frame(width: 28)
-                .help(L("主题切换"))
+    // MARK: - 底部工具条
 
+    private var bottomBar: some View {
+        HStack(spacing: Tokens.gapS) {
+            collapseButton
+
+            if isCollapsed {
+                // 收起态：主题/语言/反馈收敛到一个溢出菜单，避免 4 个图标超出 72px 宽度
                 Menu {
-                    Picker(L("语言"), selection: languageBinding) {
-                        ForEach(AppLanguage.allCases) { language in
-                            Text(language.title).tag(language)
-                        }
-                    }
+                    themePicker
+                    languagePicker
+                    Divider()
+                    Button(L("意见反馈")) { model.showFeedbackSheet = true }
                 } label: {
-                    if isCollapsed {
-                        Image(systemName: "globe")
-                    } else {
-                        Text(model.settings.language == .zh ? "中" : "EN").font(.system(size: 12, weight: .semibold))
-                    }
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13))
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
-                .frame(width: isCollapsed ? 28 : 32)
+                .frame(width: 28, height: 28)
+                .help(L("更多"))
+                Spacer()
+            } else {
+                Menu { themePicker } label: { Image(systemName: themeSymbol) }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden)
+                    .frame(width: 28, height: 28)
+                    .help(L("主题切换"))
+
+                Menu { languagePicker } label: {
+                    Text(model.settings.language == .zh ? "中" : "EN")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden)
                 .help(L("语言切换"))
 
-                if !isCollapsed { Spacer() }
+                Spacer()
 
-                Button {
-                    model.showFeedbackSheet = true
-                } label: {
+                Button { model.showFeedbackSheet = true } label: {
                     Image(systemName: "bubble.left.and.text.bubble.right")
                 }
                 .buttonStyle(.borderless)
+                .frame(width: 28, height: 28)
                 .help(L("意见反馈"))
             }
-            .padding(.horizontal, isCollapsed ? Tokens.gapS : Tokens.gapL)
-            .padding(.vertical, Tokens.gapM)
-            .background(Tokens.sidebarBackground)
+        }
+        .padding(.horizontal, Tokens.gapS)
+        .padding(.vertical, Tokens.gapS)
+    }
+
+    private var collapseButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                model.settings.sidebarCollapsed.toggle()
+            }
+            model.saveSettings()
+        } label: {
+            Image(systemName: isCollapsed ? "sidebar.right" : "sidebar.left")
+                .font(.system(size: 13))
+        }
+        .buttonStyle(.borderless)
+        .frame(width: 28, height: 28)
+        .help(isCollapsed ? L("展开导航") : L("收起导航"))
+    }
+
+    // MARK: - 主题 / 语言
+
+    private var themePicker: some View {
+        Picker(L("主题"), selection: themeBinding) {
+            ForEach(ThemeMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+            }
+        }
+        .id(model.settings.language)
+    }
+
+    private var languagePicker: some View {
+        Picker(L("语言"), selection: languageBinding) {
+            ForEach(AppLanguage.allCases) { language in
+                Text(language.title).tag(language)
+            }
         }
     }
 

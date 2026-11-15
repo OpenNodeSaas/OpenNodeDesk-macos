@@ -5,7 +5,7 @@ let package = Package(
     name: "RemotePilot",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "RemotePilot", targets: ["RemotePilot"])
+        .executable(name: "OpenNodeDesk", targets: ["RemotePilot"])
     ],
     dependencies: [
         // SSH 会话的内嵌终端：复用成熟终端实现，避免自造 ANSI 解析

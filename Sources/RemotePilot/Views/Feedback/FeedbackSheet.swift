@@ -1,10 +1,8 @@
 import SwiftUI
 import AppKit
 
-// 待替换：正式发布前替换为真实开源仓库地址
-private let repositoryURL = "https://github.com/remotepilot/remotepilot"
-// 待替换：正式发布前替换为真实支持邮箱
-private let supportEmail = "support@remotepilot.dev"
+private let repositoryURL = "https://github.com/OpenNodeSaas/remotepilot_macos"
+private let supportEmail = "remotemate@protonmail.com"
 
 /// 意见反馈对话框：开源仓库 / 邮件地址 + 可复制的完整反馈文本兜底
 struct FeedbackSheet: View {
@@ -120,7 +118,7 @@ struct FeedbackSheet: View {
     private var fullText: String {
         """
         \(L("【意见反馈】"))
-        \(L("产品"))：RemotePilot \(appVersion)
+        \(L("产品"))：OpenNodeDesk \(appVersion)
         \(L("系统"))：\(ProcessInfo.processInfo.operatingSystemVersionString)
 
         \(L("问题描述"))
