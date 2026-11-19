@@ -280,11 +280,17 @@ final class AppModel: ObservableObject {
 
     func clearSelection() { selection = [] }
 
-    func mergeImported(_ incoming: [Asset]) -> (added: Int, updated: Int) {
+    /// 合并导入：按「主机 + 端口」判重；重复项按 policy 跳过或覆盖
+    func mergeImported(_ incoming: [Asset], policy: ImportConflictPolicy = .overwrite) -> (added: Int, updated: Int, skipped: Int) {
         var added = 0
         var updated = 0
+        var skipped = 0
         for asset in incoming {
-            if let index = assets.firstIndex(where: { $0.host == asset.host && $0.port == asset.port && $0.proto == asset.proto }) {
+            if let index = assets.firstIndex(where: { $0.host == asset.host && $0.port == asset.port }) {
+                if policy == .skip {
+                    skipped += 1
+                    continue
+                }
                 var merged = asset
                 merged.id = assets[index].id
                 merged.isFavorite = assets[index].isFavorite
@@ -297,7 +303,7 @@ final class AppModel: ObservableObject {
             }
         }
         saveAssets()
-        return (added, updated)
+        return (added, updated, skipped)
     }
 
     // MARK: - 模板
@@ -748,11 +754,12 @@ final class AppModel: ObservableObject {
 
     // MARK: - 导入 / 导出 / 同步
 
-    func applyImport(_ result: (assets: [Asset], failures: [ImportFailure])) -> ImportOutcome {
-        let merged = mergeImported(result.assets)
+    func applyImport(_ result: (assets: [Asset], failures: [ImportFailure]), policy: ImportConflictPolicy = .overwrite) -> ImportOutcome {
+        let merged = mergeImported(result.assets, policy: policy)
         var outcome = ImportOutcome()
         outcome.imported = merged.added
         outcome.updated = merged.updated
+        outcome.skipped = merged.skipped
         outcome.failures = result.failures
         return outcome
     }

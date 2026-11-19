@@ -86,7 +86,7 @@ struct SyncSheet: View {
     private var previewCard: some View {
         CardContainer(title: L("预览")) {
             VStack(alignment: .leading, spacing: Tokens.gapM) {
-                Text(L("预览先行，不直接落库：确认无误后再选择导入，导入按「主机 + 端口 + 协议」合并。"))
+                Text(L("预览先行，不直接落库：确认无误后再选择导入，导入按「主机 + 端口」合并。"))
                     .font(.system(size: 11))
                     .foregroundStyle(Tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)

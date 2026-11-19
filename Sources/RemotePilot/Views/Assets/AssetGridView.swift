@@ -28,11 +28,14 @@ private struct AssetCard: View {
 
     private var isSelected: Bool { model.selection.contains(asset.id) }
 
+    /// 与表格视图一致：所有文字使用列表字号设置
+    private var fontSize: CGFloat { model.settings.listFontSize.points }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.gapS) {
             HStack(spacing: Tokens.gapS) {
                 Text(asset.displayName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: fontSize, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .help(asset.displayName)
@@ -51,24 +54,24 @@ private struct AssetCard: View {
             }
 
             Text(asset.address)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: fontSize, design: .monospaced))
                 .foregroundStyle(Tokens.mutedForeground)
                 .lineLimit(1)
 
             HStack(spacing: Tokens.gapXS) {
                 Text(asset.group.isEmpty ? L("未分组") : asset.group)
-                    .font(.system(size: 11))
+                    .font(.system(size: fontSize))
                     .foregroundStyle(Tokens.mutedForeground)
                     .lineLimit(1)
                 Text(asset.owner.isEmpty ? "—" : asset.owner)
-                    .font(.system(size: 11))
+                    .font(.system(size: fontSize))
                     .foregroundStyle(Tokens.subtleForeground)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
 
             Text(asset.expiryState.text)
-                .font(.system(size: 11, weight: asset.expiryState.isWarning ? .medium : .regular))
+                .font(.system(size: fontSize, weight: asset.expiryState.isWarning ? .medium : .regular))
                 .foregroundStyle(asset.expiryState.isWarning ? Tokens.warning : Tokens.mutedForeground)
                 .lineLimit(1)
 

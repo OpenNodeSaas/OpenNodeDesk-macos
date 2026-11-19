@@ -12,6 +12,7 @@ struct ImportWizardView: View {
     @State private var preview: ImportPreview?
     @State private var errorMessage: String?
     @State private var outcome: ImportOutcome?
+    @State private var conflictPolicy: ImportConflictPolicy = .skip
 
     private let stepTitles = [L("选择文件"), L("字段映射"), L("确认导入"), L("结果摘要")]
 
@@ -38,7 +39,7 @@ struct ImportWizardView: View {
                 ForEach(Array(stepTitles.enumerated()), id: \.offset) { index, title in
                     HStack(spacing: Tokens.gapS) {
                         Text("\(index + 1)")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(index <= step ? Color.white : Tokens.mutedForeground)
                             .frame(width: 18, height: 18)
                             .background(Circle().fill(index <= step ? Tokens.accent : Tokens.softBorder))
@@ -108,13 +109,13 @@ struct ImportWizardView: View {
                                 Text(field.title)
                                     .font(.system(size: 12, weight: .medium))
                                     .frame(width: 72, alignment: .leading)
-                                Image(systemName: "arrow.left").font(.system(size: 10)).foregroundStyle(Tokens.mutedForeground)
+                                Image(systemName: "arrow.left").font(.system(size: 11)).foregroundStyle(Tokens.mutedForeground)
                                 Text(columnName(for: field, in: preview))
                                     .font(.system(size: 12, design: .monospaced))
                                     .foregroundStyle(Tokens.primaryForeground)
                                 if field.isSensitive {
                                     Text(L("敏感"))
-                                        .font(.system(size: 10, weight: .semibold))
+                                        .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(Tokens.danger)
                                         .padding(.horizontal, 5).padding(.vertical, 1)
                                         .background(Capsule().fill(Tokens.danger.opacity(0.12)))
@@ -156,10 +157,26 @@ struct ImportWizardView: View {
                             .replacingOccurrences(of: "{b}", with: "\(preview.headers.count)"))
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.mutedForeground)
-                    Text(L("导入将按「主机 + 端口 + 协议」合并：已存在的资产会被更新，其余新增。"))
+
+                    Text(L("按「主机 + 端口」判断重复，本文件与现有资产重复 {n} 条。")
+                            .replacingOccurrences(of: "{n}", with: "\(conflictCount(preview))"))
                         .font(.system(size: 11))
-                        .foregroundStyle(Tokens.mutedForeground)
+                        .foregroundStyle(conflictCount(preview) > 0 ? Tokens.warning : Tokens.mutedForeground)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: Tokens.gapM) {
+                        FormLabel(text: L("重复项处理"))
+                        Picker("", selection: $conflictPolicy) {
+                            ForEach(ImportConflictPolicy.allCases) { policy in
+                                Text(policy.title).tag(policy)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 220)
+                        .id(model.settings.language)
+                        Spacer()
+                    }
                 }
             }
         }
@@ -171,6 +188,7 @@ struct ImportWizardView: View {
                 HStack(spacing: Tokens.gapXL) {
                     resultStat(L("新增"), outcome?.imported ?? 0, Tokens.success)
                     resultStat(L("更新"), outcome?.updated ?? 0, Tokens.info)
+                    resultStat(L("跳过"), outcome?.skipped ?? 0, Tokens.mutedForeground)
                     resultStat(L("失败"), outcome?.failures.count ?? 0, (outcome?.failures.isEmpty ?? true) ? Tokens.mutedForeground : Tokens.danger)
                 }
             }
@@ -330,15 +348,27 @@ struct ImportWizardView: View {
     private func performImport() {
         guard let preview else { return }
         let built = AssetImporter.buildAssets(rows: preview.rows, mapping: preview.mapping)
-        let result = model.applyImport(built)
+        let result = model.applyImport(built, policy: conflictPolicy)
         outcome = result
         step = 3
         let failed = result.failures.count
-        let message = L("导入完成：新增 {a} / 更新 {u} / 失败 {f}")
+        let message = L("导入完成：新增 {a} / 更新 {u} / 跳过 {s} / 失败 {f}")
             .replacingOccurrences(of: "{a}", with: "\(result.imported)")
             .replacingOccurrences(of: "{u}", with: "\(result.updated)")
+            .replacingOccurrences(of: "{s}", with: "\(result.skipped)")
             .replacingOccurrences(of: "{f}", with: "\(failed)")
         model.setStatus(message, kind: failed == 0 ? .success : .warning)
+    }
+
+    /// 预览中与现有资产「主机 + 端口」重复的条数
+    private func conflictCount(_ preview: ImportPreview) -> Int {
+        let built = AssetImporter.buildAssets(rows: preview.rows, mapping: preview.mapping)
+        let existing = Set(model.assets.map { "\($0.host):\($0.port)" })
+        var count = 0
+        for incoming in built.assets {
+            if existing.contains("\(incoming.host):\(incoming.port)") { count += 1 }
+        }
+        return count
     }
 
     private func exportFailures() {

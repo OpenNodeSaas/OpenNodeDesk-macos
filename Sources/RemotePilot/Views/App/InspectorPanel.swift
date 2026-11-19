@@ -67,7 +67,7 @@ struct InspectorPanel: View {
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
                     Text(asset.address)
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Tokens.mutedForeground)
                 }
             } else {
@@ -213,7 +213,7 @@ struct InspectorPanel: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                    Text(L("0 表示关闭")).font(.system(size: 10)).foregroundStyle(Tokens.subtleForeground)
+                    Text(L("0 表示关闭")).font(.system(size: 11)).foregroundStyle(Tokens.subtleForeground)
                 }
                 FieldHint(text: ParamHelp.probeInterval)
 

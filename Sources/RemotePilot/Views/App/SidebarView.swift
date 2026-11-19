@@ -49,7 +49,7 @@ struct SidebarView: View {
                 if !isCollapsed {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("OpenNodeDesk").font(.system(size: 13, weight: .semibold))
-                        Text(L("macOS 版")).font(.system(size: 10)).foregroundStyle(Tokens.subtleForeground)
+                        Text(L("macOS 版")).font(.system(size: 11)).foregroundStyle(Tokens.subtleForeground)
                     }
                     Spacer(minLength: 0)
                 }
@@ -110,7 +110,7 @@ struct SidebarView: View {
                 HStack(spacing: Tokens.gapS) {
                     if !isCollapsed {
                         Image(systemName: groupsExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Tokens.mutedForeground)
                             .frame(width: 12)
                     }

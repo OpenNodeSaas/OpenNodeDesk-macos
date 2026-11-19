@@ -93,10 +93,10 @@ struct ExportSheet: View {
                     .foregroundStyle(field.isSensitive ? Tokens.danger : Tokens.primaryForeground)
                 if field.isSensitive {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 11))
                         .foregroundStyle(Tokens.danger)
                     Text(L("敏感"))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Tokens.danger)
                 }
                 Spacer()

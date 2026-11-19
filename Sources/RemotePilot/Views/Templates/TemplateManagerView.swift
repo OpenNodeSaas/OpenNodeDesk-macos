@@ -188,7 +188,7 @@ struct TemplateManagerView: View {
     private func usageBadge(_ count: Int) -> some View {
         let color = count > 0 ? Tokens.info : Tokens.mutedForeground
         return Text(L("{n} 台正在使用").replacingOccurrences(of: "{n}", with: "\(count)"))
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

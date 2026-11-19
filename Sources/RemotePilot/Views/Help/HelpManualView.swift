@@ -166,7 +166,7 @@ struct HelpManualView: View {
         case .general:
             return [
                 HelpBlock(heading: L("数据存放位置"), body: L("资产、模板与设置保存在 ~/Library/Application Support/RemotePilot 目录下（如 assets.json、settings.json）。可在「导入 / 导出」中备份或迁移。")),
-                HelpBlock(heading: L("导出与导入迁移"), body: L("在「资产中心」使用导出功能生成 CSV/JSON 备份，换机后通过导入合并（按协议 + 主机 + 端口去重）。导出默认不勾选敏感字段，密码不会包含在导出文件中。")),
+                HelpBlock(heading: L("导出与导入迁移"), body: L("在「资产中心」使用导出功能生成 CSV/JSON 备份，换机后通过导入合并（按主机 + 端口去重，重复项可选择跳过或覆盖）。导出默认不勾选敏感字段，密码不会包含在导出文件中。")),
                 HelpBlock(heading: L("隐私与凭据安全"), body: L("密码与密钥口令只写入 macOS 系统钥匙串，绝不写入明文数据文件；因此换机迁移后需要重新输入密码。同步到云端时同样只同步资产与模板，不包含任何密码。")),
             ]
         }

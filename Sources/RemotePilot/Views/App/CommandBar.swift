@@ -156,7 +156,7 @@ struct CommandParametersButton: View {
             }
 
             Text(L("以上参数作用于下一次连接"))
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(Tokens.subtleForeground)
         }
         .padding(Tokens.gapL)

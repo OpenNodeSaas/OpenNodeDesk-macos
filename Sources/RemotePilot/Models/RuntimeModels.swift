@@ -324,9 +324,25 @@ enum AssetColumn: String, CaseIterable, Identifiable, Hashable {
 struct ImportOutcome {
     var imported: Int = 0
     var updated: Int = 0
+    var skipped: Int = 0
     var failures: [ImportFailure] = []
 
-    var total: Int { imported + updated + failures.count }
+    var total: Int { imported + updated + skipped + failures.count }
+}
+
+/// 导入冲突处理：IP（主机）+ 端口相同即视为重复
+enum ImportConflictPolicy: String, CaseIterable, Identifiable {
+    case skip
+    case overwrite
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .skip: return L("跳过重复")
+        case .overwrite: return L("覆盖已有")
+        }
+    }
 }
 
 struct ImportFailure: Identifiable {

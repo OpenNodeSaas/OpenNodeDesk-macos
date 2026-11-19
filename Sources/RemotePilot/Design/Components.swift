@@ -7,7 +7,7 @@ struct ProtocolBadge: View {
 
     var body: some View {
         Text(proto.badge)
-            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .font(.system(size: 11, weight: .bold, design: .rounded))
             .foregroundStyle(.white)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -30,7 +30,7 @@ struct StatusBadge: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(status == .unknown ? Tokens.mutedForeground : Tokens.statusColor(status))
             if !compact, status == .reachable, let latency = result.latencyMs {
-                Text("\(latency)ms").font(.system(size: 10)).foregroundStyle(Tokens.subtleForeground).monospacedDigit()
+                Text("\(latency)ms").font(.system(size: 11)).foregroundStyle(Tokens.subtleForeground).monospacedDigit()
             }
         }
         .help(result.summary)
@@ -56,7 +56,7 @@ struct SourceBadge: View {
 
     var body: some View {
         Text(source.label)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(Tokens.sourceColor(source))
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
@@ -196,7 +196,7 @@ struct GroupBadgeBar: View {
             HStack(spacing: Tokens.gapXS) {
                 Text(name).font(.system(size: 11, weight: isActive ? .semibold : .regular))
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(isActive ? Color.white.opacity(0.9) : Tokens.mutedForeground)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
@@ -239,7 +239,7 @@ struct ExpirySummaryBar: View {
                         .font(.system(size: 12, weight: .medium))
                     Spacer()
                     Text(expanded ? L("收起明细") : L("展开明细")).font(.system(size: 11)).foregroundStyle(Tokens.mutedForeground)
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 10)).foregroundStyle(Tokens.mutedForeground)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 11)).foregroundStyle(Tokens.mutedForeground)
                 }
                 .padding(.horizontal, Tokens.gapL)
                 .padding(.vertical, Tokens.gapM)
@@ -292,7 +292,7 @@ struct FieldHint: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10))
+            .font(.system(size: 11))
             .foregroundStyle(isError ? Tokens.danger : Tokens.subtleForeground)
             .fixedSize(horizontal: false, vertical: true)
     }

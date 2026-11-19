@@ -104,7 +104,7 @@ private struct WorkspaceTabBar: View {
                 .truncationMode(.middle)
             Button { TerminateAndClose(session.id, model: model) } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Tokens.mutedForeground)
             }
             .buttonStyle(.borderless)

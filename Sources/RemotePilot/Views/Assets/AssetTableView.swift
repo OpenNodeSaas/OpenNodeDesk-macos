@@ -152,12 +152,12 @@ struct AssetTableView: View {
     private func headerLabel(_ title: String, active: Bool) -> some View {
         HStack(spacing: 2) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: fontSize, weight: .semibold))
                 .foregroundStyle(Tokens.mutedForeground)
                 .lineLimit(1)
             if active {
                 Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Tokens.accent)
             }
             Spacer(minLength: 0)
