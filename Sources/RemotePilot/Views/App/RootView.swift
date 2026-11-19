@@ -6,27 +6,38 @@ struct RootView: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView()
-                .navigationSplitViewColumnWidth(
-                    min: model.settings.sidebarCollapsed ? 76 : 200,
-                    ideal: model.settings.sidebarCollapsed ? 76 : 232,
-                    max: model.settings.sidebarCollapsed ? 76 : 300
-                )
-        } detail: {
-            VStack(spacing: 0) {
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                StatusBar()
+        ZStack {
+            NavigationSplitView {
+                SidebarView()
+                    .navigationSplitViewColumnWidth(
+                        min: model.settings.sidebarCollapsed ? 76 : 200,
+                        ideal: model.settings.sidebarCollapsed ? 76 : 232,
+                        max: model.settings.sidebarCollapsed ? 76 : 300
+                    )
+            } detail: {
+                VStack(spacing: 0) {
+                    content
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    StatusBar()
+                }
+                .background(Tokens.appBackground)
+                // 命令栏挂在原生工具栏上：与红绿灯同一行，且点击事件由 AppKit 托管，不会被窗口拖拽区拦截
+                .toolbar { commandToolbar }
+                .toolbarBackground(Tokens.surfaceBackground, for: .windowToolbar)
+                .inspector(isPresented: $model.inspectorPresented) {
+                    InspectorPanel()
+                        .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
+                }
             }
-            .background(Tokens.appBackground)
-            // 命令栏挂在原生工具栏上：与红绿灯同一行，且点击事件由 AppKit 托管，不会被窗口拖拽区拦截
-            .toolbar { commandToolbar }
-            .toolbarBackground(Tokens.surfaceBackground, for: .windowToolbar)
-            .inspector(isPresented: $model.inspectorPresented) {
-                InspectorPanel()
-                    .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
+            // 锁定态：底层完全不可交互，避免通过覆盖层缝隙或键盘操作绕过
+            .allowsHitTesting(!model.isLocked)
+
+            if model.isLocked {
+                LockOverlayView().environmentObject(model)
             }
+        }
+        .sheet(item: $model.recoverySheet) { request in
+            RecoveryCodeSheet(request: request).environmentObject(model)
         }
         .sheet(item: $model.editorRequest) { request in
             AssetEditorView(request: request).environmentObject(model)
@@ -76,7 +87,7 @@ struct RootView: View {
 
     @ToolbarContentBuilder
     private var commandToolbar: some ToolbarContent {
-        if showsCommandBar {
+        if showsCommandBar && !model.isLocked {
             ToolbarItemGroup(placement: .navigation) {
                 CommandSearchField()
                 CommandViewModeControl()

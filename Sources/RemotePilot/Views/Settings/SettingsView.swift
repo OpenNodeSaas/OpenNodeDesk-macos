@@ -15,6 +15,13 @@ struct SettingsView: View {
     @State private var colorScheme: SSHColorScheme = .dark
     @State private var independentWindow = false
 
+    @State private var protectionEnabled = false
+    @State private var protectionIdle = AppSettings.protectionDefaultIdleMinutes
+    @State private var protectionPassword = ""
+    @State private var protectionConfirm = ""
+    @State private var protectionAutoWipe = false
+    @State private var protectionError: String?
+
     private let maxContentWidth: CGFloat = 720
 
     var body: some View {
@@ -24,6 +31,7 @@ struct SettingsView: View {
                 clientConfigCard
                 terminalAppearanceCard
                 independentWindowCard
+                protectionCard
                 footer
             }
             .frame(maxWidth: maxContentWidth, alignment: .leading)
@@ -200,6 +208,120 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 7.4 保护口令（自动锁定）
+
+    private var protectionCard: some View {
+        CardContainer(title: L("保护口令（自动锁定）")) {
+            VStack(alignment: .leading, spacing: Tokens.gapL) {
+                VStack(alignment: .leading, spacing: Tokens.gapXS) {
+                    Toggle(L("启用保护口令"), isOn: $protectionEnabled)
+                        .toggleStyle(.switch)
+                    FieldHint(text: L("开启后，应用在设定时长内无键鼠输入即自动锁定，启动时也需先解锁。"))
+                }
+
+                if protectionEnabled {
+                    Divider()
+                    idlePicker
+                    Divider()
+                    passwordFields
+                    Divider()
+                    autoWipeBlock
+                    actions
+                    riskBlock
+                }
+
+                if let protectionError {
+                    FieldHint(text: protectionError, isError: true)
+                }
+
+                HStack {
+                    Spacer()
+                    Button(L("应用保护口令设置")) { saveProtection() }
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+    }
+
+    private var idlePicker: some View {
+        VStack(alignment: .leading, spacing: Tokens.gapXS) {
+            FormLabel(text: L("空闲锁定时长"))
+            HStack(spacing: Tokens.gapM) {
+                Picker("", selection: $protectionIdle) {
+                    ForEach(AppSettings.protectionIdleOptions, id: \.self) { minutes in
+                        Text(L("{n} 分钟").replacingOccurrences(of: "{n}", with: "\(minutes)")).tag(minutes)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: 160)
+                Spacer()
+            }
+            FieldHint(text: L("从最后一次键鼠输入算起，超时即锁定；锁定后自动关闭所有子窗口与会话窗口。"))
+        }
+    }
+
+    private var passwordFields: some View {
+        let modifying = model.settings.hasProtectionCredential
+        return VStack(alignment: .leading, spacing: Tokens.gapL) {
+            fieldRow(modifying ? L("修改口令（留空则不修改）") : L("设置口令")) {
+                SecureField(L("口令"), text: $protectionPassword)
+                    .textFieldStyle(.roundedBorder)
+            }
+            fieldRow(L("确认口令")) {
+                SecureField(L("再次输入口令"), text: $protectionConfirm)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(protectionPassword.isEmpty)
+            }
+            FieldHint(text: modifying
+                ? L("修改口令后会换发一串新的恢复口令，旧的恢复口令随即作废。")
+                : L("口令至少 4 位；设置成功后会生成一串恢复口令，请务必妥善保存。"))
+        }
+    }
+
+    private var autoWipeBlock: some View {
+        VStack(alignment: .leading, spacing: Tokens.gapXS) {
+            Toggle(L("连续输错达上限后自动清空本地数据"), isOn: $protectionAutoWipe)
+                .toggleStyle(.switch)
+            FieldHint(text: L("关闭时：口令与恢复口令连续错误 5 次后仅提示，需手动确认清空；开启时：达上限后直接自动清空本地数据，且不可撤销。"))
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: Tokens.gapM) {
+            Button(L("立即锁定")) { model.lock() }
+                .controlSize(.small)
+                .disabled(!model.settings.hasProtectionCredential)
+            Spacer()
+        }
+    }
+
+    private var riskBlock: some View {
+        HStack(alignment: .top, spacing: Tokens.gapS) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(Tokens.warning)
+            Text(protectionAutoWipe
+                ? L("口令与恢复口令均只保存哈希、无法找回明文。忘记口令时只能用恢复口令重置；连续错误 5 次将自动清空本地数据。")
+                : L("口令与恢复口令均只保存哈希、无法找回明文。忘记口令时只能用恢复口令重置；连续错误 5 次后只能清空本地数据。"))
+                .font(.system(size: 11))
+                .foregroundStyle(Tokens.primaryForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(Tokens.gapM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Tokens.cardRadius, style: .continuous).fill(Tokens.warning.opacity(0.10)))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.cardRadius, style: .continuous).stroke(Tokens.warning.opacity(0.5), lineWidth: 1))
+    }
+
+    private func fieldRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: Tokens.gapXS) {
+            FormLabel(text: label)
+            content()
+        }
+    }
+
     // MARK: - 底部保存
 
     private var footer: some View {
@@ -221,6 +343,12 @@ struct SettingsView: View {
         fontSize = Double(model.settings.sshTerminalFontSize)
         colorScheme = model.settings.sshColorScheme
         independentWindow = model.settings.sshUsesIndependentWindow
+        protectionEnabled = model.settings.protectionEnabled
+        protectionIdle = model.settings.protectionIdleMinutes
+        protectionAutoWipe = model.settings.protectionAutoWipe
+        protectionPassword = ""
+        protectionConfirm = ""
+        protectionError = nil
     }
 
     private func restoreDefaults() {
@@ -240,6 +368,45 @@ struct SettingsView: View {
         model.settings.sshUsesIndependentWindow = independentWindow
         model.saveSettings()
         model.setStatus(L("设置已保存"), kind: .success)
+    }
+
+    /// 应用保护口令设置：启用且填了口令时校验并换发恢复口令；关闭时清除全部凭据
+    private func saveProtection() {
+        protectionError = nil
+
+        guard protectionEnabled else {
+            model.setProtection(enabled: false, idleMinutes: protectionIdle, autoWipe: protectionAutoWipe, newPassword: nil)
+            protectionPassword = ""
+            protectionConfirm = ""
+            model.setStatus(L("保护口令已关闭"), kind: .success)
+            return
+        }
+
+        let hasCredential = model.settings.hasProtectionCredential
+        // 首次启用必须设置口令；已启用则口令留空表示仅调整时长
+        if !hasCredential && protectionPassword.isEmpty {
+            protectionError = L("请设置保护口令。")
+            return
+        }
+        if !protectionPassword.isEmpty {
+            if protectionPassword.count < 4 {
+                protectionError = L("口令长度至少 4 位。")
+                return
+            }
+            if protectionPassword != protectionConfirm {
+                protectionError = L("两次输入的口令不一致。")
+                return
+            }
+        }
+
+        let newPassword = protectionPassword.isEmpty ? nil : protectionPassword
+        let code = model.setProtection(enabled: true, idleMinutes: protectionIdle, autoWipe: protectionAutoWipe, newPassword: newPassword)
+        protectionPassword = ""
+        protectionConfirm = ""
+        if let code {
+            model.recoverySheet = RecoveryCodeRequest(code: code, reason: .created)
+        }
+        model.setStatus(L("保护口令设置已保存"), kind: .success)
     }
 
     private func browse(into path: Binding<String>) {

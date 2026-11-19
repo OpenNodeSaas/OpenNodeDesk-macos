@@ -94,88 +94,93 @@ struct RemotePilotApp: App {
     @CommandsBuilder
     private var commands: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button(L("新增资产")) { model.editorRequest = EditorRequest(asset: Asset(), isNew: true) }
+            Button(L("新增资产"), action: guarded { model.editorRequest = EditorRequest(asset: Asset(), isNew: true) })
                 .keyboardShortcut("n", modifiers: .command)
         }
 
         CommandGroup(replacing: .saveItem) {
-            Button(L("保存设置")) {
+            Button(L("保存设置"), action: guarded {
                 model.saveSettings()
                 model.setStatus(L("设置已保存"), kind: .success)
-            }
+            })
             .keyboardShortcut("s", modifiers: .command)
 
             Divider()
 
-            Button(L("导入资产")) { model.showImportSheet = true }
+            Button(L("导入资产"), action: guarded { model.showImportSheet = true })
                 .keyboardShortcut("i", modifiers: [.command, .shift])
-            Button(L("导出选中")) { model.showExportSheet = true }
+            Button(L("导出选中"), action: guarded { model.showExportSheet = true })
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-            Button(L("云端同步")) { model.showSyncSheet = true }
+            Button(L("云端同步"), action: guarded { model.showSyncSheet = true })
                 .keyboardShortcut("y", modifiers: [.command, .shift])
         }
 
         CommandMenu(L("连接")) {
-            Button(L("连接选中")) {
+            Button(L("连接选中"), action: guarded {
                 if let asset = model.selectedAssets.first { model.connect(asset) }
-            }
+            })
             .keyboardShortcut("l", modifiers: [.command, .shift])
 
-            Button(L("打开连接方案")) {
+            Button(L("打开连接方案"), action: guarded {
                 if let asset = model.selectedAssets.first {
                     model.planRequest = PlanRequest(asset: asset, highlightTemplate: true)
                 }
-            }
+            })
             .keyboardShortcut("k", modifiers: [.command, .shift])
 
             Divider()
 
-            Button(L("探测全部")) { model.probe(model.assets) }
+            Button(L("探测全部"), action: guarded { model.probe(model.assets) })
                 .keyboardShortcut("r", modifiers: .command)
-            Button(L("探测选中")) { model.probeSelected() }
+            Button(L("探测选中"), action: guarded { model.probeSelected() })
                 .keyboardShortcut("r", modifiers: [.command, .shift])
 
             Divider()
 
             // 不占用 ⌘W（macOS 约定为关闭窗口），会话标签用 ⌥⌘W
-            Button(L("关闭当前会话")) {
+            Button(L("关闭当前会话"), action: guarded {
                 guard let id = model.focusedSessionID else { return }
                 TerminalRegistry.shared.terminate(sessionID: id)
                 model.closeSession(id)
-            }
+            })
             .keyboardShortcut("w", modifiers: [.command, .option])
             .disabled(model.focusedSessionID == nil)
 
-            Button(L("关闭全部会话")) { model.closeAllSessions() }
+            Button(L("关闭全部会话"), action: guarded { model.closeAllSessions() })
                 .disabled(model.sessions.isEmpty)
         }
 
         CommandMenu(L("视图")) {
-            Button(L("聚焦搜索")) { model.focusSearchTick += 1 }
+            Button(L("聚焦搜索"), action: guarded { model.focusSearchTick += 1 })
                 .keyboardShortcut("k", modifiers: .command)
 
             Divider()
 
-            Button(L("表格视图")) {
+            Button(L("表格视图"), action: guarded {
                 model.settings.viewMode = .table
                 model.nav = .assets
                 model.saveSettings()
-            }
-            Button(L("宫格视图")) {
+            })
+            Button(L("宫格视图"), action: guarded {
                 model.settings.viewMode = .grid
                 model.nav = .assets
                 model.saveSettings()
-            }
+            })
 
             Divider()
 
-            Button(L("切换详情面板")) {
+            Button(L("切换详情面板"), action: guarded {
                 model.inspectorPresented.toggle()
-            }
+            })
             .keyboardShortcut("i", modifiers: [.command, .option])
 
-            Button(L("帮助手册")) { model.openHelp(.general) }
-            Button(L("意见反馈")) { model.showFeedbackSheet = true }
+            Button(L("帮助手册"), action: guarded { model.openHelp(.general) })
+            Button(L("意见反馈"), action: guarded { model.showFeedbackSheet = true })
         }
+    }
+
+    /// 锁定态下屏蔽全部菜单动作，避免用快捷键绕过锁定覆盖层
+    private func guarded(_ action: @escaping () -> Void) -> () -> Void {
+        { if !model.isLocked { action() } }
     }
 }

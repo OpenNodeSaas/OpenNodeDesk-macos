@@ -165,11 +165,89 @@ struct AppSettings: Codable {
     var sidebarCollapsed: Bool = false
     var inspectorShown: Bool = false
 
+    // 保护口令（自动锁定）：口令与恢复口令均只保存盐 + PBKDF2 哈希
+    var protectionEnabled: Bool = false
+    var protectionIdleMinutes: Int = 10
+    var protectionSalt: String = ""
+    var protectionHash: String = ""
+    var protectionRecoverySalt: String = ""
+    var protectionRecoveryHash: String = ""
+    /// 口令与恢复口令连续输错达上限后是否自动清空本地数据（默认关闭：仅提供手动清空入口）
+    var protectionAutoWipe: Bool = false
+
     static let defaultRDPArgs = ""
     static let defaultVNCArgs = "{host}::{display}"
     /// SSH 窗口大小兜底值（资产与模板均未设置时）
     static let defaultSSHWindowWidth = 1000
     static let defaultSSHWindowHeight = 640
+    /// 空闲锁定时长可选档位（分钟）
+    static let protectionIdleOptions = [1, 5, 10, 15, 30, 60]
+    static let protectionDefaultIdleMinutes = 10
+    /// 口令与恢复口令的最大尝试次数（固定值，锁定覆盖层与提示文案共用）
+    static let protectionMaxAttempts = 5
+
+    enum CodingKeys: String, CodingKey {
+        case theme, language, viewMode
+        case windowMode, redirects, colorDepth
+        case probeInterval, rememberPassword
+        case rdpClientPath, rdpClientArgs, vncClientPath, vncClientArgs, sshExtraArgs
+        case displayWidth, displayHeight
+        case sshTerminalFontSize, sshColorScheme, sshUsesIndependentWindow
+        case hiddenColumns, columnOrder, listFontSize
+        case syncEndpoint, syncToken
+        case sidebarCollapsed, inspectorShown
+        case protectionEnabled, protectionIdleMinutes
+        case protectionSalt, protectionHash
+        case protectionRecoverySalt, protectionRecoveryHash
+        case protectionAutoWipe
+    }
+}
+
+extension AppSettings {
+    /// 逐字段 decodeIfPresent：旧配置文件缺字段时回落默认值，避免整份设置被重置
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = AppSettings()
+        theme = try c.decodeIfPresent(ThemeMode.self, forKey: .theme) ?? fallback.theme
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? fallback.language
+        viewMode = try c.decodeIfPresent(ViewMode.self, forKey: .viewMode) ?? fallback.viewMode
+        windowMode = try c.decodeIfPresent(WindowMode.self, forKey: .windowMode) ?? fallback.windowMode
+        redirects = try c.decodeIfPresent(RedirectionOptions.self, forKey: .redirects) ?? fallback.redirects
+        colorDepth = try c.decodeIfPresent(ColorDepth.self, forKey: .colorDepth) ?? fallback.colorDepth
+        probeInterval = try c.decodeIfPresent(Int.self, forKey: .probeInterval) ?? fallback.probeInterval
+        rememberPassword = try c.decodeIfPresent(Bool.self, forKey: .rememberPassword) ?? fallback.rememberPassword
+        rdpClientPath = try c.decodeIfPresent(String.self, forKey: .rdpClientPath) ?? fallback.rdpClientPath
+        rdpClientArgs = try c.decodeIfPresent(String.self, forKey: .rdpClientArgs) ?? fallback.rdpClientArgs
+        vncClientPath = try c.decodeIfPresent(String.self, forKey: .vncClientPath) ?? fallback.vncClientPath
+        vncClientArgs = try c.decodeIfPresent(String.self, forKey: .vncClientArgs) ?? fallback.vncClientArgs
+        sshExtraArgs = try c.decodeIfPresent(String.self, forKey: .sshExtraArgs) ?? fallback.sshExtraArgs
+        displayWidth = try c.decodeIfPresent(Int.self, forKey: .displayWidth) ?? fallback.displayWidth
+        displayHeight = try c.decodeIfPresent(Int.self, forKey: .displayHeight) ?? fallback.displayHeight
+        sshTerminalFontSize = try c.decodeIfPresent(Int.self, forKey: .sshTerminalFontSize) ?? fallback.sshTerminalFontSize
+        sshColorScheme = try c.decodeIfPresent(SSHColorScheme.self, forKey: .sshColorScheme) ?? fallback.sshColorScheme
+        sshUsesIndependentWindow = try c.decodeIfPresent(Bool.self, forKey: .sshUsesIndependentWindow) ?? fallback.sshUsesIndependentWindow
+        hiddenColumns = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenColumns) ?? fallback.hiddenColumns
+        columnOrder = try c.decodeIfPresent([String].self, forKey: .columnOrder) ?? fallback.columnOrder
+        listFontSize = try c.decodeIfPresent(ListFontSize.self, forKey: .listFontSize) ?? fallback.listFontSize
+        syncEndpoint = try c.decodeIfPresent(String.self, forKey: .syncEndpoint) ?? fallback.syncEndpoint
+        syncToken = try c.decodeIfPresent(String.self, forKey: .syncToken) ?? fallback.syncToken
+        sidebarCollapsed = try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? fallback.sidebarCollapsed
+        inspectorShown = try c.decodeIfPresent(Bool.self, forKey: .inspectorShown) ?? fallback.inspectorShown
+
+        protectionEnabled = try c.decodeIfPresent(Bool.self, forKey: .protectionEnabled) ?? false
+        protectionSalt = try c.decodeIfPresent(String.self, forKey: .protectionSalt) ?? ""
+        protectionHash = try c.decodeIfPresent(String.self, forKey: .protectionHash) ?? ""
+        protectionRecoverySalt = try c.decodeIfPresent(String.self, forKey: .protectionRecoverySalt) ?? ""
+        protectionRecoveryHash = try c.decodeIfPresent(String.self, forKey: .protectionRecoveryHash) ?? ""
+        protectionAutoWipe = try c.decodeIfPresent(Bool.self, forKey: .protectionAutoWipe) ?? false
+
+        // 归一化：非法档位回落默认；启用但缺凭据时回落关闭（避免永远无法解锁）
+        let minutes = try c.decodeIfPresent(Int.self, forKey: .protectionIdleMinutes) ?? AppSettings.protectionDefaultIdleMinutes
+        protectionIdleMinutes = AppSettings.protectionIdleOptions.contains(minutes) ? minutes : AppSettings.protectionDefaultIdleMinutes
+        if protectionEnabled && (protectionSalt.isEmpty || protectionHash.isEmpty) {
+            protectionEnabled = false
+        }
+    }
 }
 
 extension AppSettings {
@@ -208,5 +286,15 @@ extension AppSettings {
         let order = allColumnsInOrder
         guard let index = order.firstIndex(of: column) else { return false }
         return order.indices.contains(up ? index - 1 : index + 1)
+    }
+
+    /// 已启用保护口令且持有所需凭据
+    var hasProtectionCredential: Bool {
+        protectionEnabled && !protectionSalt.isEmpty && !protectionHash.isEmpty
+    }
+
+    /// 存在可用的恢复口令凭据
+    var hasRecoveryCredential: Bool {
+        !protectionRecoverySalt.isEmpty && !protectionRecoveryHash.isEmpty
     }
 }

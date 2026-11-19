@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import AppKit
+import CoreGraphics
 
 /// 状态栏语义
 enum StatusKind {
@@ -54,6 +56,18 @@ struct TemplateEditRequest: Identifiable {
     var isNew: Bool
 }
 
+/// 恢复口令展示请求：口令设置 / 修改后、以及用恢复口令重置后各触发一次
+struct RecoveryCodeRequest: Identifiable {
+    enum Reason {
+        case created    // 首次启用或修改口令
+        case reset      // 用恢复口令重置口令后
+    }
+
+    var id = UUID()
+    var code: String
+    var reason: Reason
+}
+
 /// 应用状态中枢：资产、模板、设置、探测、会话、导航统一收口
 @MainActor
 final class AppModel: ObservableObject {
@@ -106,7 +120,16 @@ final class AppModel: ObservableObject {
     /// 自增令牌：菜单快捷键请求聚焦全局搜索框
     @Published var focusSearchTick = 0
 
+    // MARK: 保护口令（自动锁定）
+
+    @Published var isLocked = false
+    @Published var unlockAttempts = 0
+    @Published var recoveryAttempts = 0
+    @Published var unlockError: String?
+    @Published var recoverySheet: RecoveryCodeRequest?
+
     private var probeTimer: Timer?
+    private var idleTimer: Timer?
 
     // MARK: - 生命周期
 
@@ -117,6 +140,9 @@ final class AppModel: ObservableObject {
         }
         applyLanguage()
         startAutoProbeIfNeeded()
+        // 已启用保护口令：启动即锁定（覆盖层在主窗口显示后立刻生效）
+        isLocked = settings.hasProtectionCredential
+        restartIdleMonitor()
     }
 
     private func loadFromDisk() {
@@ -159,6 +185,7 @@ final class AppModel: ObservableObject {
         Storage.save(layout.rawValue, to: "layout.json")
         applyLanguage()
         startAutoProbeIfNeeded()
+        restartIdleMonitor()
     }
     private func saveProbeResults() { Storage.save(probeResults, to: "probe.json") }
 
@@ -818,6 +845,175 @@ final class AppModel: ObservableObject {
     func openHelp(_ section: HelpSection) {
         focusedHelpSection = section
         nav = .help
+    }
+
+    // MARK: - 保护口令（自动锁定）
+
+    /// 写回保护口令配置。`newPassword` 非空时同时生成新的恢复口令，并返回其明文（只展示一次）。
+    @discardableResult
+    func setProtection(enabled: Bool, idleMinutes: Int, autoWipe: Bool, newPassword: String?) -> String? {
+        settings.protectionEnabled = enabled
+        settings.protectionIdleMinutes = AppSettings.protectionIdleOptions.contains(idleMinutes)
+            ? idleMinutes
+            : AppSettings.protectionDefaultIdleMinutes
+        settings.protectionAutoWipe = autoWipe
+
+        var issuedRecoveryCode: String?
+        if !enabled {
+            settings.protectionSalt = ""
+            settings.protectionHash = ""
+            settings.protectionRecoverySalt = ""
+            settings.protectionRecoveryHash = ""
+        } else if let newPassword, !newPassword.isEmpty {
+            let credential = ProtectionHasher.create(newPassword)
+            settings.protectionSalt = credential.salt
+            settings.protectionHash = credential.hash
+
+            let code = ProtectionHasher.makeRecoveryCode()
+            let recovery = ProtectionHasher.create(ProtectionHasher.normalizeRecoveryCode(code))
+            settings.protectionRecoverySalt = recovery.salt
+            settings.protectionRecoveryHash = recovery.hash
+            issuedRecoveryCode = code
+        }
+
+        saveSettings()
+        return issuedRecoveryCode
+    }
+
+    func restartIdleMonitor() {
+        idleTimer?.invalidate()
+        idleTimer = nil
+        guard settings.hasProtectionCredential else { return }
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkIdleLock() }
+        }
+    }
+
+    private func checkIdleLock() {
+        guard settings.hasProtectionCredential, !isLocked, !hasOpenModalSheet() else { return }
+        if systemIdleSeconds() >= Double(settings.protectionIdleMinutes * 60) { lock() }
+    }
+
+    /// 系统级「最后一次键鼠输入」距今的秒数：窗口在后台/隐藏时同样有效
+    private func systemIdleSeconds() -> TimeInterval {
+        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+    }
+
+    /// 是否存在可见的模态子窗口：有则跳过本次自动锁定，避免打断用户正在进行的操作
+    func hasOpenModalSheet() -> Bool {
+        if editorRequest != nil || planRequest != nil || credentialRequest != nil
+            || templateEditRequest != nil || recoverySheet != nil { return true }
+        if showImportSheet || showExportSheet || showSyncSheet || showFeedbackSheet { return true }
+        return NSApp.keyWindow?.attachedSheet != nil
+    }
+
+    /// 进入锁定态：先关闭所有子窗口，再遮挡主窗口
+    func lock() {
+        editorRequest = nil
+        planRequest = nil
+        credentialRequest = nil
+        templateEditRequest = nil
+        recoverySheet = nil
+        showImportSheet = false
+        showExportSheet = false
+        showSyncSheet = false
+        showFeedbackSheet = false
+        SSHWindowManager.shared.closeAll()
+        sessions.removeAll { $0.isDetached }
+        unlockAttempts = 0
+        recoveryAttempts = 0
+        unlockError = nil
+        isLocked = true
+    }
+
+    @discardableResult
+    func unlock(password: String) -> Bool {
+        let ok = ProtectionHasher.verify(
+            password,
+            saltBase64: settings.protectionSalt,
+            hashBase64: settings.protectionHash
+        )
+        guard ok else {
+            unlockAttempts += 1
+            unlockError = L("口令错误，还可尝试 {n} 次")
+                .replacingOccurrences(of: "{n}", with: "\(max(0, AppSettings.protectionMaxAttempts - unlockAttempts))")
+            return false
+        }
+        isLocked = false
+        unlockAttempts = 0
+        recoveryAttempts = 0
+        unlockError = nil
+        restartIdleMonitor()
+        setStatus(L("就绪"))
+        return true
+    }
+
+    @discardableResult
+    func verifyRecoveryCode(_ code: String) -> Bool {
+        let normalized = ProtectionHasher.normalizeRecoveryCode(code)
+        let ok = ProtectionHasher.verify(
+            normalized,
+            saltBase64: settings.protectionRecoverySalt,
+            hashBase64: settings.protectionRecoveryHash
+        )
+        guard ok else {
+            recoveryAttempts += 1
+            if recoveryAttempts >= AppSettings.protectionMaxAttempts, settings.protectionAutoWipe {
+                // 口令与恢复口令均已连续输错达上限，且已开启自动清空：直接销毁本地数据
+                wipeLocalDataAndReset()
+                setStatus(L("连续输错达上限，已自动清空本地数据"), kind: .warning)
+                return false
+            }
+            unlockError = L("恢复口令错误，还可尝试 {n} 次")
+                .replacingOccurrences(of: "{n}", with: "\(max(0, AppSettings.protectionMaxAttempts - recoveryAttempts))")
+            return false
+        }
+        recoveryAttempts = 0
+        unlockError = nil
+        return true
+    }
+
+    /// 用恢复口令重置口令：设置新口令并换发新的恢复口令，随即解锁
+    @discardableResult
+    func resetPasswordWithRecovery(newPassword: String) -> String? {
+        let code = setProtection(
+            enabled: true,
+            idleMinutes: settings.protectionIdleMinutes,
+            autoWipe: settings.protectionAutoWipe,
+            newPassword: newPassword
+        )
+        isLocked = false
+        unlockAttempts = 0
+        recoveryAttempts = 0
+        unlockError = nil
+        restartIdleMonitor()
+        return code
+    }
+
+    /// 兜底：清空本地数据，以「未启用保护口令」的空数据状态进入（不重启进程）
+    func wipeLocalDataAndReset() {
+        TerminalRegistry.shared.terminateAll()
+        for name in ["settings.json", "assets.json", "templates.json", "probe.json", "layout.json"] {
+            try? FileManager.default.removeItem(at: Storage.url(name))
+        }
+        for asset in assets {
+            Keychain.remove(account: Keychain.passwordAccount(asset.id))
+            Keychain.remove(account: Keychain.keyPassphraseAccount(asset.id))
+        }
+        sessions.removeAll()
+        focusedSessionID = nil
+        maximizedSessionID = nil
+        selection = []
+        assets = []
+        templates = []
+        probeResults = [:]
+        settings = AppSettings()
+        isLocked = false
+        unlockAttempts = 0
+        recoveryAttempts = 0
+        unlockError = nil
+        restartIdleMonitor()
+        setStatus(L("本地数据已清空，保护口令已关闭"), kind: .success)
     }
 
     // MARK: - 导航辅助
