@@ -2,6 +2,46 @@ import SwiftUI
 import AppKit
 import SwiftTerm
 
+/// SSH 终端：补上右键「复制 / 粘贴 / 全选」菜单。
+/// 远端程序开启鼠标上报时（如 vim / tmux），右键照常交给远端程序，不弹本地菜单。
+final class SSHLocalTerminalView: LocalProcessTerminalView {
+    /// 打开该会话的 SFTP 文件浏览器（由 SSHTerminalController 注入）
+    var onOpenFileTransfer: (() -> Void)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+
+        let copyItem = NSMenuItem(title: L("复制"), action: #selector(TerminalView.copy(_:)), keyEquivalent: "")
+        copyItem.target = self
+        copyItem.isEnabled = !(getSelection() ?? "").isEmpty
+        menu.addItem(copyItem)
+
+        let pasteItem = NSMenuItem(title: L("粘贴"), action: #selector(TerminalView.paste(_:)), keyEquivalent: "")
+        pasteItem.target = self
+        pasteItem.isEnabled = !(NSPasteboard.general.string(forType: .string) ?? "").isEmpty
+        menu.addItem(pasteItem)
+
+        menu.addItem(.separator())
+
+        let selectAllItem = NSMenuItem(title: L("全选"), action: #selector(TerminalView.selectAll(_:)), keyEquivalent: "")
+        selectAllItem.target = self
+        menu.addItem(selectAllItem)
+
+        menu.addItem(.separator())
+
+        let transferItem = NSMenuItem(title: L("文件传输…"), action: #selector(openFileTransfer), keyEquivalent: "")
+        transferItem.target = self
+        transferItem.isEnabled = onOpenFileTransfer != nil
+        menu.addItem(transferItem)
+
+        return menu
+    }
+
+    @objc private func openFileTransfer() {
+        onOpenFileTransfer?()
+    }
+}
+
 /// SSH 会话由应用内终端承担：真实 PTY + 完整终端语义
 @MainActor
 final class SSHTerminalController: NSObject, LocalProcessTerminalViewDelegate {
@@ -23,11 +63,14 @@ final class SSHTerminalController: NSObject, LocalProcessTerminalViewDelegate {
         self.port = asset.port
         self.model = model
 
-        let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 900, height: 480))
+        let view = SSHLocalTerminalView(frame: NSRect(x: 0, y: 0, width: 900, height: 480))
         self.terminal = view
         super.init()
 
         view.processDelegate = self
+        view.onOpenFileTransfer = {
+            SFTPWindowManager.shared.open(asset: asset, settings: settings)
+        }
         applyAppearance(settings: settings)
         start(asset: asset, settings: settings)
     }

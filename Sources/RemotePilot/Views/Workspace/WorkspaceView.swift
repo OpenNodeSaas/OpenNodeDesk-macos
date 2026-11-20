@@ -128,6 +128,7 @@ private struct WorkspaceTabBar: View {
 
 private struct WorkspaceToolbar: View {
     @EnvironmentObject var model: AppModel
+    @State private var openQuery = ""
 
     private var focusedSession: Session? {
         guard let id = model.focusedSessionID else { return nil }
@@ -137,6 +138,8 @@ private struct WorkspaceToolbar: View {
     var body: some View {
         HStack(spacing: Tokens.gapL) {
             layoutSwitcher
+            Divider().frame(height: 18)
+            openControl
             Divider().frame(height: 18)
             Button(L("适应窗口")) { fitToWindow() }
                 .buttonStyle(.borderless)
@@ -183,6 +186,80 @@ private struct WorkspaceToolbar: View {
                 .help(layout.title)
             }
         }
+    }
+
+    /// 打开资产：输入名称/主机回车打开，或从下拉菜单选择
+    private var openControl: some View {
+        HStack(spacing: Tokens.gapXS) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(Tokens.subtleForeground)
+            TextField(L("打开资产：输入名称或主机后回车"), text: $openQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .frame(width: 190)
+                .onSubmit(openFromQuery)
+            Menu {
+                if model.assets.isEmpty {
+                    Button(L("还没有资产")) {}.disabled(true)
+                } else {
+                    ForEach(sortedAssets) { asset in
+                        Button("\(asset.displayName)  \(asset.address)") { open(asset) }
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 18)
+            .help(L("从列表中选择资产"))
+            .disabled(model.assets.isEmpty)
+        }
+        .padding(.horizontal, Tokens.gapS)
+        .frame(height: 22)
+        .background(
+            RoundedRectangle(cornerRadius: Tokens.controlRadius, style: .continuous)
+                .fill(Tokens.fieldBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Tokens.controlRadius, style: .continuous)
+                .stroke(Tokens.softBorder, lineWidth: 1)
+        )
+    }
+
+    private var sortedAssets: [Asset] {
+        model.assets.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+
+    /// 先精确匹配名称，再按名称/主机/地址/分组/用户名模糊匹配
+    private func openFromQuery() {
+        let keyword = openQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !keyword.isEmpty else { return }
+        let pool = sortedAssets
+        let exact = pool.first { $0.displayName.lowercased() == keyword }
+        let fuzzy = pool.first { asset in
+            [asset.name, asset.displayName, asset.host, asset.address, asset.group, asset.username]
+                .joined(separator: " ")
+                .lowercased()
+                .contains(keyword)
+        }
+        guard let asset = exact ?? fuzzy else {
+            model.setStatus(
+                L("未找到匹配的资产：{v}").replacingOccurrences(of: "{v}", with: openQuery),
+                kind: .warning
+            )
+            return
+        }
+        open(asset)
+    }
+
+    private func open(_ asset: Asset) {
+        openQuery = ""
+        // 有会话处于最大化时先还原，确保新会话可见
+        model.maximizedSessionID = nil
+        model.connect(asset)
     }
 
     private func fitToWindow() {
@@ -253,6 +330,17 @@ private struct SessionCell: View {
                 .foregroundStyle(Tokens.mutedForeground)
                 .lineLimit(1)
             Spacer(minLength: Tokens.gapS)
+            if session.proto == .ssh, let asset = model.asset(id: session.assetID) {
+                Button {
+                    SFTPWindowManager.shared.open(asset: asset, settings: model.settings)
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.circle")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.borderless)
+                .help(L("文件传输"))
+                .accessibilityLabel(L("文件传输"))
+            }
             Button { toggleMaximize() } label: {
                 Image(systemName: isMaximized ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                     .font(.system(size: 11))

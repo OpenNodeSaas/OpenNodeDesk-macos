@@ -919,6 +919,7 @@ final class AppModel: ObservableObject {
         showSyncSheet = false
         showFeedbackSheet = false
         SSHWindowManager.shared.closeAll()
+        SFTPWindowManager.shared.closeAll()
         sessions.removeAll { $0.isDetached }
         unlockAttempts = 0
         recoveryAttempts = 0
