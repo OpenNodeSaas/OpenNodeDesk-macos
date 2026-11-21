@@ -1,13 +1,17 @@
 import SwiftUI
+import AppKit
 
 /// 应用外壳：左侧导航 + 顶部命令栏 + 内容区 + 右侧详情面板 + 状态栏
 /// 布局规格见 PRODUCT_UX_DESIGN 4.1
 struct RootView: View {
     @EnvironmentObject var model: AppModel
 
+    /// 侧边栏显隐：沉浸全屏时强制收起，退出后复原
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
     var body: some View {
         ZStack {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView()
                     .navigationSplitViewColumnWidth(
                         min: model.settings.sidebarCollapsed ? 76 : 200,
@@ -21,9 +25,12 @@ struct RootView: View {
                     StatusBar()
                 }
                 .background(Tokens.appBackground)
+                // 沉浸全屏时内容顶到窗口最上沿：安全区由窗口注入到分栏容器内部，
+                // 只在外层 ZStack 上 ignoresSafeArea 传不进来，必须挂在分栏内容自身上
+                .ignoresSafeArea(.container, edges: model.immersiveFullScreen ? .top : [])
                 // 命令栏挂在原生工具栏上：与红绿灯同一行，且点击事件由 AppKit 托管，不会被窗口拖拽区拦截
                 .toolbar { commandToolbar }
-                .toolbarBackground(Tokens.surfaceBackground, for: .windowToolbar)
+                .toolbarBackground(model.immersiveFullScreen ? Visibility.hidden : Visibility.visible, for: .windowToolbar)
                 .inspector(isPresented: $model.inspectorPresented) {
                     InspectorPanel()
                         .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
@@ -31,10 +38,27 @@ struct RootView: View {
             }
             // 锁定态：底层完全不可交互，避免通过覆盖层缝隙或键盘操作绕过
             .allowsHitTesting(!model.isLocked)
+            // 沉浸全屏时整条原生工具栏隐藏；必须挂在窗口内容根上，
+            // 挂在 detail 列里时 SwiftUI 不会把它应用到窗口工具栏，顶部会留下一条空带
+            .toolbar(model.immersiveFullScreen ? .hidden : .visible, for: .windowToolbar)
 
             if model.isLocked {
                 LockOverlayView().environmentObject(model)
             }
+        }
+        .ignoresSafeArea(.container, edges: model.immersiveFullScreen ? .top : [])
+        .onChange(of: model.immersiveFullScreen) { _, immersive in
+            columnVisibility = immersive ? .detailOnly : .all
+        }
+        // 用户用 Esc 或绿灯退出全屏时，复原侧边栏、命令栏与窗口样式
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            model.endImmersiveFullScreen()
+        }
+        // 全屏动画结束后再收侧边栏、改窗口样式：切换过程中动这些会让 AppKit 中止全屏
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            guard model.immersiveFullScreen else { return }
+            columnVisibility = .detailOnly
+            model.applyImmersiveChrome()
         }
         .sheet(item: $model.recoverySheet) { request in
             RecoveryCodeSheet(request: request).environmentObject(model)
@@ -87,7 +111,8 @@ struct RootView: View {
 
     @ToolbarContentBuilder
     private var commandToolbar: some ToolbarContent {
-        if showsCommandBar && !model.isLocked {
+        // 沉浸全屏时连工具栏内容一起撤掉：只把 NSToolbar 设成不可见，AppKit 仍会为它保留顶部高度
+        if showsCommandBar && !model.isLocked && !model.immersiveFullScreen {
             ToolbarItemGroup(placement: .navigation) {
                 CommandSearchField()
                 CommandViewModeControl()

@@ -347,13 +347,13 @@ extension AppSettings {
     /// 列宽：用户拖拽值优先，否则用列默认宽；名称列无拖拽值时返回 0（表示保持弹性）
     func columnWidth(_ column: AssetColumn) -> CGFloat {
         if let stored = columnWidths[column.rawValue] {
-            return min(max(CGFloat(stored), column.minWidth), AssetColumn.maxWidth)
+            return min(max(CGFloat(stored), AssetColumn.minResizeWidth), AssetColumn.maxWidth)
         }
         return column.width ?? 0
     }
 
     mutating func setColumnWidth(_ width: CGFloat, for column: AssetColumn) {
-        columnWidths[column.rawValue] = Double(min(max(width, column.minWidth), AssetColumn.maxWidth))
+        columnWidths[column.rawValue] = Double(min(max(width, AssetColumn.minResizeWidth), AssetColumn.maxWidth))
     }
 
     mutating func resetColumnWidths() {

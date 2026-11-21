@@ -441,6 +441,7 @@ extension Localization {
         "适应窗口": "Ajuster à la fenêtre",
         "自动选择能容纳当前会话数的最小布局": "Choisit automatiquement la plus petite disposition convenant au nombre actuel de sessions",
         "切换窗口全屏": "Basculer la fenêtre en plein écran",
+        "退出全屏": "Quitter le plein écran",
         "连接配置": "Plan de connexion",
         "打开当前会话的连接方案": "Ouvrir le plan de connexion de la session actuelle",
         "断开当前": "Déconnecter",

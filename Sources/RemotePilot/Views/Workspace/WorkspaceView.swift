@@ -7,8 +7,11 @@ struct WorkspaceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WorkspaceTabBar()
-            Divider()
+            // 沉浸全屏时收起标签页头，只保留工具条与会话画面
+            if !model.immersiveFullScreen {
+                WorkspaceTabBar()
+                Divider()
+            }
             WorkspaceToolbar()
             Divider()
             content
@@ -145,9 +148,9 @@ private struct WorkspaceToolbar: View {
                 .buttonStyle(.borderless)
                 .disabled(model.workspaceSessions.isEmpty)
                 .help(L("自动选择能容纳当前会话数的最小布局"))
-            Button(L("全屏")) { NSApp.keyWindow?.toggleFullScreen(nil) }
+            Button(model.immersiveFullScreen ? L("退出全屏") : L("全屏")) { toggleFullScreen() }
                 .buttonStyle(.borderless)
-                .help(L("切换窗口全屏"))
+                .help(model.immersiveFullScreen ? L("退出全屏") : L("切换窗口全屏"))
             Button(L("连接配置")) { openPlan() }
                 .buttonStyle(.borderless)
                 .disabled(focusedSession == nil)
@@ -260,6 +263,11 @@ private struct WorkspaceToolbar: View {
         // 有会话处于最大化时先还原，确保新会话可见
         model.maximizedSessionID = nil
         model.connect(asset)
+    }
+
+    /// 全屏：进入原生全屏的同时进入沉浸模式；已在全屏时退出，复原由 RootView 处理
+    private func toggleFullScreen() {
+        model.toggleImmersiveFullScreen()
     }
 
     private func fitToWindow() {

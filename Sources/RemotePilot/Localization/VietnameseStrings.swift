@@ -441,6 +441,7 @@ extension Localization {
         "适应窗口": "Vừa cửa sổ",
         "自动选择能容纳当前会话数的最小布局": "Tự động chọn bố cục nhỏ nhất đủ chứa số phiên hiện tại",
         "切换窗口全屏": "Bật/tắt toàn màn hình cửa sổ",
+        "退出全屏": "Thoát toàn màn hình",
         "连接配置": "Cấu hình kết nối",
         "打开当前会话的连接方案": "Mở phương án kết nối của phiên hiện tại",
         "断开当前": "Ngắt kết nối hiện tại",

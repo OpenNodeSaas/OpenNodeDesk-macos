@@ -2,8 +2,9 @@ import Foundation
 import SwiftUI
 import AppKit
 
-/// 手写表格：列集合由「列设置」驱动（列显隐 / 列顺序 / 列宽 / 列表字号），永不横向滚动。
+/// 手写表格：列集合由「列设置」驱动（列显隐 / 列顺序 / 列宽 / 列表字号）。
 /// 除「操作」外所有列表头可排序；拖动表头右边缘可调列宽，宽度随本地配置持久化。
+/// 列宽合计超出视口时横向滚动，内容始终靠左上对齐。
 struct AssetTableView: View {
     @EnvironmentObject var model: AppModel
 
@@ -82,7 +83,8 @@ struct AssetTableView: View {
     var body: some View {
         let items = rows
         return GeometryReader { proxy in
-            ScrollView(.vertical) {
+            // 列宽合计超出视口时横向滚动，不再把右侧列裁掉
+            ScrollView([.vertical, .horizontal]) {
                 LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                     Section(header: headerRow) {
                         ForEach(items.indices, id: \.self) { index in
@@ -90,11 +92,16 @@ struct AssetTableView: View {
                         }
                     }
                 }
+                .frame(width: contentWidth, alignment: .leading)
+                // 双轴 ScrollView 会把不满一屏的内容居中，这里撑满视口并靠左上对齐
+                .frame(minWidth: proxy.size.width, minHeight: proxy.size.height, alignment: .topLeading)
             }
             .onAppear { tableWidth = proxy.size.width }
             .onChange(of: proxy.size.width) { _, newValue in tableWidth = newValue }
         }
         .focusable()
+        // 表格自己管理键盘交互，但不要系统默认的聚焦蓝框
+        .focusEffectDisabled()
         .onKeyPress(.return) {
             if model.selection.count == 1,
                let id = model.selection.first,
@@ -149,19 +156,19 @@ struct AssetTableView: View {
                     Button {
                         toggleSort(column)
                     } label: {
-                        headerLabel(column.title, active: sortColumn == column)
+                        headerLabel(column, active: sortColumn == column)
                     }
                     .buttonStyle(.plain)
                 } else {
-                    headerLabel(column.title, active: false)
+                    headerLabel(column, active: false)
                 }
             }
         }
     }
 
-    private func headerLabel(_ title: String, active: Bool) -> some View {
+    private func headerLabel(_ column: AssetColumn, active: Bool) -> some View {
         HStack(spacing: 2) {
-            Text(title)
+            Text(column.title)
                 .font(.system(size: fontSize, weight: .semibold))
                 .foregroundStyle(Tokens.mutedForeground)
                 .lineLimit(1)
@@ -170,9 +177,8 @@ struct AssetTableView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Tokens.accent)
             }
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: column == .name ? .leading : .center)
         .contentShape(Rectangle())
     }
 
@@ -225,14 +231,29 @@ struct AssetTableView: View {
     // MARK: - 列宽（拖拽调整 + 记忆）
 
     /// 列宽：用户拖拽过的列用记忆值，其余用列默认宽；名称列未拖拽时保持弹性填满
+    /// 对齐：名称列左对齐，其余列居中
     @ViewBuilder
     private func columnFrame<Content: View>(_ column: AssetColumn, @ViewBuilder content: () -> Content) -> some View {
         let width = model.settings.columnWidth(column)
+        let alignment: Alignment = column == .name ? .leading : .center
         if width > 0 {
-            content().frame(width: width, alignment: .leading)
+            content().frame(width: width, alignment: alignment)
         } else {
-            content().frame(minWidth: column.minWidth, maxWidth: .infinity, alignment: .leading)
+            content().frame(minWidth: column.minWidth, maxWidth: .infinity, alignment: alignment)
         }
+    }
+
+    /// 内容总宽：两侧图标列 + 左右内边距 + 各列宽。
+    /// 名称列未拖拽时用视口剩余宽度补齐，因此列宽合计不超视口时内容宽正好等于视口（无横向滚动）；
+    /// 一旦合计超出视口，内容宽大于视口，由 ScrollView 横向滚动承载，右侧列不再被裁掉。
+    private var contentWidth: CGFloat {
+        let chrome = Metrics.favorite + Metrics.select + Metrics.hPad * 2
+        let stored = columns.reduce(CGFloat.zero) { $0 + model.settings.columnWidth($1) }
+        if columns.contains(.name), model.settings.columnWidth(.name) == 0 {
+            let nameWidth = max(AssetColumn.name.minWidth, tableWidth - chrome - stored)
+            return max(chrome + stored + nameWidth, tableWidth)
+        }
+        return max(chrome + stored, tableWidth)
     }
 
     /// 表头右边缘的拖拽把手：拖动即时生效，松手后写入本地配置

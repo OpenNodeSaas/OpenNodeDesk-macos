@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             InstanceLock.activateExistingInstance()
             exit(0)
         }
+        // 不恢复上次的窗口状态，避免启动时直接进入全屏
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -80,8 +82,9 @@ struct RemotePilotApp: App {
             RootView()
                 .environmentObject(model)
                 .preferredColorScheme(model.settings.theme.colorScheme)
-                // 最小尺寸以「表格 15 列不横向滚动」为基准：导航 200 + 表格自然宽 1340 + 余量
-                .frame(minWidth: 1560, minHeight: 740)
+                // 最小尺寸只保证界面不至于挤坏；列宽合计超出时由表格横向滚动承载，
+                // 不再用「15 列正好放下」反推窗口下限（那会让窗口永远宽到不出现横向滚动条）
+                .frame(minWidth: 1000, minHeight: 640)
         }
         .defaultSize(width: 1720, height: 1000)
         // 紧凑统一工具栏：红绿灯与命令栏同一行，省掉独立标题栏高度；

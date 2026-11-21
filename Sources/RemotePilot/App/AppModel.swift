@@ -93,6 +93,41 @@ final class AppModel: ObservableObject {
     @Published var focusedSessionID: UUID?
     @Published var layout: WorkspaceLayout = .single
     @Published var maximizedSessionID: UUID?
+    /// 工作台「全屏」：进入原生全屏并隐藏侧边栏、顶部命令栏与标签页头
+    @Published var immersiveFullScreen = false
+
+    /// 进入沉浸全屏。窗口样式留到动画结束后再改（见 applyImmersiveChrome）：
+    /// 切换过程中动工具栏会让 AppKit 直接中止全屏，表现为「闪一下又弹回来」。
+    /// 已在全屏时再调用即退出：交给系统退出，复原由 didExitFullScreenNotification 触发 endImmersiveFullScreen。
+    func toggleImmersiveFullScreen() {
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
+        if window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+            return
+        }
+        immersiveFullScreen = true
+        window.toggleFullScreen(nil)
+    }
+
+    /// 全屏动画结束后压平顶部：内容区铺满窗口并撤掉工具栏。
+    /// 只隐藏工具栏内容不够——NSToolbar 本身仍占位，顶部会留出一条空带。
+    func applyImmersiveChrome() {
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.toolbar?.isVisible = false
+        NSApp.presentationOptions.insert([.autoHideToolbar, .autoHideMenuBar])
+    }
+
+    /// 退出全屏（Esc / 绿灯 / 再次点全屏）时复原窗口样式
+    func endImmersiveFullScreen() {
+        immersiveFullScreen = false
+        NSApp.presentationOptions.remove([.autoHideToolbar, .autoHideMenuBar])
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
+        window.styleMask.remove(.fullSizeContentView)
+        window.titlebarAppearsTransparent = false
+        window.toolbar?.isVisible = true
+    }
 
     // MARK: 反馈
 
@@ -533,10 +568,12 @@ final class AppModel: ObservableObject {
                 return
             }
             if settings.sshUsesIndependentWindow {
-                // 独立窗口：不进入工作台标签与分屏
+                // 独立窗口：不进入工作台标签与分屏，停留在资产列表页
                 openIndependentSSHWindow(for: asset)
             } else {
                 openSession(for: asset, carrier: .embeddedTerminal)
+                // 内嵌终端会话需要用户看到画面，直接切到工作台
+                nav = .workspace
             }
         case .rdp, .vnc:
             // 已勾选记住密码却读不到（钥匙串授权被拒或条目丢失）时，先补录一次再连接

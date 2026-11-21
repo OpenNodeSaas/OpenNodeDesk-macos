@@ -441,6 +441,7 @@ extension Localization {
         "适应窗口": "Sesuaikan ke jendela",
         "自动选择能容纳当前会话数的最小布局": "Otomatis memilih tata letak terkecil yang sesuai dengan jumlah sesi saat ini",
         "切换窗口全屏": "Alihkan jendela layar penuh",
+        "退出全屏": "Keluar dari layar penuh",
         "连接配置": "Rencana koneksi",
         "打开当前会话的连接方案": "Buka rencana koneksi untuk sesi saat ini",
         "断开当前": "Putuskan",
