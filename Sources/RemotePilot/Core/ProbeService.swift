@@ -67,8 +67,8 @@ enum ProbeService {
         max(0, Int(Date().timeIntervalSince(start) * 1000))
     }
 
-    /// 批量探测：限制并发，避免把本机连接表打满
-    static func probeAll(_ targets: [(id: UUID, host: String, port: Int)], concurrency: Int = 12, timeout: TimeInterval = 3) async -> [UUID: ProbeResult] {
+    /// 批量探测：限制并发，避免把本机连接表打满，也避免目标侧把本机 IP 当作扫描源
+    static func probeAll(_ targets: [(id: UUID, host: String, port: Int)], concurrency: Int = AppSettings.probeConcurrency, timeout: TimeInterval = 3) async -> [UUID: ProbeResult] {
         var results: [UUID: ProbeResult] = [:]
         await withTaskGroup(of: (UUID, ProbeResult).self) { group in
             var pending = targets[...]

@@ -9,7 +9,9 @@ struct PlanDrawer: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var overrides = LaunchOverrides.none
-    @State private var draftTemplate: ConnectionTemplate?
+
+    /// 始终读取资产的最新副本：在抽屉里改模板会立即持久化，头部与预览需随之刷新
+    private var asset: Asset { model.asset(id: request.asset.id) ?? request.asset }
 
     // SSH 显示设置（写入资产自身的 SSH 独立窗口尺寸与 SSH 字段）
     @State private var sshWidthText = ""
@@ -28,7 +30,6 @@ struct PlanDrawer: View {
         }
         .frame(width: 580, height: 640)
         .onAppear {
-            draftTemplate = model.template(id: request.asset.templateID)
             model.launchOverrides = overrides
             syncSSHFields()
         }
@@ -50,7 +51,7 @@ struct PlanDrawer: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Tokens.mutedForeground)
             HStack(spacing: Tokens.gapS) {
-                if let template = model.template(id: request.asset.templateID) {
+                if let template = model.template(id: asset.templateID) {
                     SourceBadge(source: .template(template.name))
                     Text(L("参数来源：模板"))
                         .font(.system(size: 11))
@@ -184,11 +185,11 @@ struct PlanDrawer: View {
     }
 
     private func syncSSHFields() {
-        let size = model.resolveSSHWindowSize(request.asset)
+        let size = model.resolveSSHWindowSize(asset)
         sshWidthText = "\(size.width)"
         sshHeightText = "\(size.height)"
-        sshPortText = "\(request.asset.port)"
-        sshKeyPath = request.asset.sshKeyPath
+        sshPortText = "\(asset.port)"
+        sshKeyPath = asset.sshKeyPath
     }
 
     private func browseKey() {
@@ -209,7 +210,7 @@ struct PlanDrawer: View {
             model.connect(request.asset)
             return
         }
-        var updated = request.asset
+        var updated = asset
         updated.sshWindowWidth = min(max(Int(sshWidthText.trimmingCharacters(in: .whitespaces)) ?? 0, 320), 7680)
         updated.sshWindowHeight = min(max(Int(sshHeightText.trimmingCharacters(in: .whitespaces)) ?? 0, 240), 4320)
         if let port = Int(sshPortText.trimmingCharacters(in: .whitespaces)), port > 0 { updated.port = port }
@@ -222,19 +223,20 @@ struct PlanDrawer: View {
     private var templateSection: some View {
         CardContainer(title: L("模板套用")) {
             VStack(alignment: .leading, spacing: Tokens.gapM) {
-                Picker("", selection: $draftTemplate) {
-                    Text(L("不使用模板")).tag(Optional<ConnectionTemplate>.none)
+                Picker("", selection: templateBinding) {
+                    Text(L("不使用模板")).tag(Optional<UUID>.none)
                     ForEach(model.templates) { template in
-                        Text(template.name).tag(Optional(template))
+                        Text(template.name).tag(Optional(template.id))
                     }
                 }
                 .labelsHidden()
 
-                FieldHint(text: L("套用模板会用模板中的参数填充下面的覆盖项，不影响其他资产。"))
+                FieldHint(text: L("选择模板即为该资产绑定并保存；下方预览与后续连接立即按模板解析。"))
 
                 HStack(spacing: Tokens.gapM) {
                     Button(L("套用到本次")) { applyTemplate() }
                         .controlSize(.small)
+                        .disabled(asset.templateID == nil)
                     Button(L("清空覆盖")) { overrides = .none }
                         .controlSize(.small)
                 }
@@ -244,6 +246,14 @@ struct PlanDrawer: View {
             RoundedRectangle(cornerRadius: Tokens.cardRadius, style: .continuous)
                 .stroke(request.highlightTemplate ? Tokens.accent : Color.clear,
                         lineWidth: request.highlightTemplate ? 2 : 0)
+        )
+    }
+
+    /// 选择即绑定：写入资产 templateID 并持久化；「不使用模板」为解绑
+    private var templateBinding: Binding<UUID?> {
+        Binding(
+            get: { asset.templateID },
+            set: { model.assignTemplate($0, to: [asset.id]) }
         )
     }
 
@@ -312,7 +322,7 @@ struct PlanDrawer: View {
     private var previewSection: some View {
         CardContainer(title: L("当前生效参数预览")) {
             VStack(alignment: .leading, spacing: Tokens.gapS) {
-                ForEach(model.effectiveParameters(for: request.asset).rows) { item in
+                ForEach(model.effectiveParameters(for: asset).rows) { item in
                     HStack(spacing: Tokens.gapM) {
                         Text(item.key)
                             .font(.system(size: 11))
@@ -384,7 +394,7 @@ struct PlanDrawer: View {
     // MARK: - 动作
 
     private func applyTemplate() {
-        guard let template = draftTemplate else { return }
+        guard let template = model.template(id: asset.templateID) else { return }
         overrides.windowMode = template.windowMode
         overrides.colorDepth = template.colorDepth
         overrides.redirects = template.redirects

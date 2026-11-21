@@ -1,8 +1,9 @@
 import Foundation
 import SwiftUI
+import AppKit
 
-/// 手写表格：列集合由「列设置」驱动（列显隐 / 列顺序 / 列表字号），永不横向滚动。
-/// 除「操作」外所有列表头可排序。
+/// 手写表格：列集合由「列设置」驱动（列显隐 / 列顺序 / 列宽 / 列表字号），永不横向滚动。
+/// 除「操作」外所有列表头可排序；拖动表头右边缘可调列宽，宽度随本地配置持久化。
 struct AssetTableView: View {
     @EnvironmentObject var model: AppModel
 
@@ -14,6 +15,9 @@ struct AssetTableView: View {
 
     @State private var sortColumn: AssetColumn = .name
     @State private var sortAscending = true
+    /// 表格可用宽度：名称列保持弹性时，用于推算它的当前宽度
+    @State private var tableWidth: CGFloat = 0
+    @State private var dragStartWidth: CGFloat?
 
     private var columns: [AssetColumn] { model.settings.visibleColumns }
     private var fontSize: CGFloat { model.settings.listFontSize.points }
@@ -77,14 +81,18 @@ struct AssetTableView: View {
 
     var body: some View {
         let items = rows
-        return ScrollView(.vertical) {
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Section(header: headerRow) {
-                    ForEach(items.indices, id: \.self) { index in
-                        rowView(asset: items[index], index: index)
+        return GeometryReader { proxy in
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section(header: headerRow) {
+                        ForEach(items.indices, id: \.self) { index in
+                            rowView(asset: items[index], index: index)
+                        }
                     }
                 }
             }
+            .onAppear { tableWidth = proxy.size.width }
+            .onChange(of: proxy.size.width) { _, newValue in tableWidth = newValue }
         }
         .focusable()
         .onKeyPress(.return) {
@@ -124,6 +132,7 @@ struct AssetTableView: View {
 
             ForEach(columns) { column in
                 headerCell(column)
+                    .overlay(alignment: .trailing) { resizeHandle(column) }
             }
         }
         .padding(.horizontal, Metrics.hPad)
@@ -134,19 +143,20 @@ struct AssetTableView: View {
     }
 
     private func headerCell(_ column: AssetColumn) -> some View {
-        Group {
-            if column.isSortable {
-                Button {
-                    toggleSort(column)
-                } label: {
-                    headerLabel(column.title, active: sortColumn == column)
+        columnFrame(column) {
+            Group {
+                if column.isSortable {
+                    Button {
+                        toggleSort(column)
+                    } label: {
+                        headerLabel(column.title, active: sortColumn == column)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    headerLabel(column.title, active: false)
                 }
-                .buttonStyle(.plain)
-            } else {
-                headerLabel(column.title, active: false)
             }
         }
-        .frame(minWidth: column.minWidth, maxWidth: column.width ?? .infinity, alignment: .leading)
     }
 
     private func headerLabel(_ title: String, active: Bool) -> some View {
@@ -212,12 +222,61 @@ struct AssetTableView: View {
         }
     }
 
+    // MARK: - 列宽（拖拽调整 + 记忆）
+
+    /// 列宽：用户拖拽过的列用记忆值，其余用列默认宽；名称列未拖拽时保持弹性填满
+    @ViewBuilder
+    private func columnFrame<Content: View>(_ column: AssetColumn, @ViewBuilder content: () -> Content) -> some View {
+        let width = model.settings.columnWidth(column)
+        if width > 0 {
+            content().frame(width: width, alignment: .leading)
+        } else {
+            content().frame(minWidth: column.minWidth, maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// 表头右边缘的拖拽把手：拖动即时生效，松手后写入本地配置
+    private func resizeHandle(_ column: AssetColumn) -> some View {
+        ZStack(alignment: .trailing) {
+            Color.clear
+            Rectangle()
+                .fill(Tokens.softBorder)
+                .frame(width: 1)
+        }
+        .frame(width: 9)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    let start = dragStartWidth ?? currentWidth(column)
+                    if dragStartWidth == nil { dragStartWidth = start }
+                    model.settings.setColumnWidth(start + value.translation.width, for: column)
+                }
+                .onEnded { _ in
+                    dragStartWidth = nil
+                    model.saveSettings()
+                }
+        )
+    }
+
+    /// 拖拽起点宽：优先用列自身宽；弹性列按「表宽 − 其余列宽」推算，避免拖拽瞬间跳变
+    private func currentWidth(_ column: AssetColumn) -> CGFloat {
+        let own = model.settings.columnWidth(column)
+        if own > 0 { return own }
+        let others = columns.filter { $0 != column }
+            .reduce(CGFloat.zero) { $0 + max(model.settings.columnWidth($1), $1.minWidth) }
+        let available = tableWidth - Metrics.favorite - Metrics.select - Metrics.hPad * 2 - others
+        return max(column.minWidth, available)
+    }
+
     // MARK: - 单元格
 
-    /// 按列渲染：宽度由列定义决定，字号跟随列表字号设置
+    /// 按列渲染：宽度由列宽记忆 / 列默认值决定，字号跟随列表字号设置
     private func cell(_ column: AssetColumn, asset: Asset) -> some View {
-        cellContent(column, asset: asset)
-            .frame(minWidth: column.minWidth, maxWidth: column.width ?? .infinity, alignment: .leading)
+        columnFrame(column) { cellContent(column, asset: asset) }
     }
 
     @ViewBuilder

@@ -270,7 +270,8 @@ struct InspectorPanel: View {
             model.settings.displayWidth = width
             model.settings.displayHeight = height
         }
-        model.settings.probeInterval = max(intValue(probeIntervalText), 0)
+        // 低于最小间隔会被抬到最小间隔：探测过密会导致本机 IP 被目标拉黑
+        model.settings.probeInterval = AppSettings.normalizeProbeInterval(intValue(probeIntervalText))
         syncFields()
         model.saveSettings()
         model.setStatus(L("设置已保存"), kind: .success)

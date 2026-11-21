@@ -237,6 +237,16 @@ struct CommandOverflowMenu: View {
 
             Divider()
 
+            Menu {
+                Button(L("不使用模板")) { model.assignTemplate(nil, to: model.selection) }
+                ForEach(model.templates) { template in
+                    Button(template.name) { model.assignTemplate(template.id, to: model.selection) }
+                }
+            } label: {
+                Text(L("设定模板"))
+            }
+            .disabled(model.selection.isEmpty || model.templates.isEmpty)
+
             Button(L("反选")) { model.invertSelection() }
                 .disabled(model.filteredAssets.isEmpty)
             Button(L("云端同步")) { model.showSyncSheet = true }

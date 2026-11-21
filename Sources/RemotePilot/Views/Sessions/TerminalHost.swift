@@ -10,6 +10,8 @@ final class SSHLocalTerminalView: LocalProcessTerminalView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
+        // 关闭自动校验：AppKit 会按 action 校验菜单项，自定义 action（如「文件传输」）恒被判为不可用
+        menu.autoenablesItems = false
 
         let copyItem = NSMenuItem(title: L("复制"), action: #selector(TerminalView.copy(_:)), keyEquivalent: "")
         copyItem.target = self

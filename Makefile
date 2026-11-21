@@ -2,7 +2,7 @@
 # BUNDLE_ID 与数据目录沿用旧名，保证升级后本地资产与钥匙串密码不失效。
 APP_NAME := OpenNodeDesk
 BUNDLE_ID := com.remotepilot.macos
-VERSION := 2.3.4
+VERSION := 2.3.5
 CONFIG := release
 BIN := .build/$(CONFIG)/$(APP_NAME)
 APP_DIR := dist/$(APP_NAME).app

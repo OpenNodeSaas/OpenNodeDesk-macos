@@ -35,6 +35,18 @@ struct ColumnSettingsPopover: View {
                 .frame(maxHeight: 240)
                 FieldHint(text: L("「名称」「操作」为必要列，不可隐藏。"))
             }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: Tokens.gapS) {
+                Button(L("恢复默认列宽")) {
+                    model.settings.resetColumnWidths()
+                    model.saveSettings()
+                }
+                .controlSize(.small)
+                .disabled(model.settings.columnWidths.isEmpty)
+                FieldHint(text: L("拖动表头右边缘可调整列宽，宽度会记住。"))
+            }
         }
         .padding(Tokens.gapL)
         .frame(width: 320)

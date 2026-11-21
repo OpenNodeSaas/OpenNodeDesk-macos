@@ -318,6 +318,9 @@ enum AssetColumn: String, CaseIterable, Identifiable, Hashable {
     }
 
     var minWidth: CGFloat { width ?? 140 }
+
+    /// 拖拽可调列宽的上限（避免横向溢出被裁剪）
+    static let maxWidth: CGFloat = 600
 }
 
 /// 导入结果摘要

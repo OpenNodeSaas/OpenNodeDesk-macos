@@ -182,7 +182,7 @@ struct SidebarView: View {
                     .help(L("主题切换"))
 
                 Menu { languagePicker } label: {
-                    Text(model.settings.language == .zh ? "中" : "EN")
+                    Text(model.settings.language.shortLabel)
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 28, height: 28)
                 }

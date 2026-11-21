@@ -27,14 +27,56 @@ enum ThemeMode: String, Codable, CaseIterable, Identifiable {
 
 enum AppLanguage: String, Codable, CaseIterable, Identifiable {
     case zh
+    case zhTW = "zh-TW"
     case en
+    case ja
+    case ko
+    case de
+    case fr
+    case es
+    case pt
+    case ru
+    case th
+    case id
+    case vi
 
     var id: String { rawValue }
 
+    /// 语言自称：菜单里始终以母语显示，避免用户在自己的语言下认不出选项
     var title: String {
         switch self {
-        case .zh: return "中文"
+        case .zh: return "简体中文"
+        case .zhTW: return "繁體中文"
         case .en: return "English"
+        case .ja: return "日本語"
+        case .ko: return "한국어"
+        case .de: return "Deutsch"
+        case .fr: return "Français"
+        case .es: return "Español"
+        case .pt: return "Português"
+        case .ru: return "Русский"
+        case .th: return "ไทย"
+        case .id: return "Bahasa Indonesia"
+        case .vi: return "Tiếng Việt"
+        }
+    }
+
+    /// 侧边栏按钮上的短标识（宽度固定 28pt，取 1–2 字符）
+    var shortLabel: String {
+        switch self {
+        case .zh: return "中"
+        case .zhTW: return "繁"
+        case .en: return "EN"
+        case .ja: return "日"
+        case .ko: return "한"
+        case .de: return "DE"
+        case .fr: return "FR"
+        case .es: return "ES"
+        case .pt: return "PT"
+        case .ru: return "RU"
+        case .th: return "TH"
+        case .id: return "ID"
+        case .vi: return "VI"
         }
     }
 }
@@ -132,7 +174,8 @@ struct AppSettings: Codable {
     var colorDepth: ColorDepth = .bpp24
 
     // 右侧详情面板
-    var probeInterval: Int = 0          // 秒；0 = 关闭
+    /// 自动探测间隔（秒）；0 = 关闭。默认 300 秒：探测过密会把本机 IP 送进目标的黑名单
+    var probeInterval: Int = AppSettings.probeDefaultInterval
     var rememberPassword: Bool = true   // macOS：由系统钥匙串保存
 
     // 承载客户端（帮助手册中配置）
@@ -156,6 +199,8 @@ struct AppSettings: Codable {
     var hiddenColumns: Set<String> = []
     var columnOrder: [String] = AssetColumn.allCases.map(\.rawValue)
     var listFontSize: ListFontSize = .medium
+    /// 用户拖拽表头后的列宽（键为 AssetColumn.rawValue）；缺失表示用列默认宽
+    var columnWidths: [String: Double] = [:]
 
     // 云端同步
     var syncEndpoint: String = ""
@@ -185,6 +230,16 @@ struct AppSettings: Codable {
     static let protectionDefaultIdleMinutes = 10
     /// 口令与恢复口令的最大尝试次数（固定值，锁定覆盖层与提示文案共用）
     static let protectionMaxAttempts = 5
+    /// 自动探测：默认间隔与最小间隔（秒）。探测过密会被目标当作扫描源，导致本机 IP 被拉黑
+    static let probeDefaultInterval = 300
+    static let probeMinInterval = 60
+    /// 自动探测的并发上限：同时发起的 TCP 连接数
+    static let probeConcurrency = 4
+
+    /// 归一化探测间隔：0 / 负数保持关闭，其余抬到最小间隔以上
+    static func normalizeProbeInterval(_ value: Int) -> Int {
+        value <= 0 ? 0 : max(value, probeMinInterval)
+    }
 
     enum CodingKeys: String, CodingKey {
         case theme, language, viewMode
@@ -193,7 +248,7 @@ struct AppSettings: Codable {
         case rdpClientPath, rdpClientArgs, vncClientPath, vncClientArgs, sshExtraArgs
         case displayWidth, displayHeight
         case sshTerminalFontSize, sshColorScheme, sshUsesIndependentWindow
-        case hiddenColumns, columnOrder, listFontSize
+        case hiddenColumns, columnOrder, listFontSize, columnWidths
         case syncEndpoint, syncToken
         case sidebarCollapsed, inspectorShown
         case protectionEnabled, protectionIdleMinutes
@@ -214,7 +269,7 @@ extension AppSettings {
         windowMode = try c.decodeIfPresent(WindowMode.self, forKey: .windowMode) ?? fallback.windowMode
         redirects = try c.decodeIfPresent(RedirectionOptions.self, forKey: .redirects) ?? fallback.redirects
         colorDepth = try c.decodeIfPresent(ColorDepth.self, forKey: .colorDepth) ?? fallback.colorDepth
-        probeInterval = try c.decodeIfPresent(Int.self, forKey: .probeInterval) ?? fallback.probeInterval
+        probeInterval = AppSettings.normalizeProbeInterval(try c.decodeIfPresent(Int.self, forKey: .probeInterval) ?? fallback.probeInterval)
         rememberPassword = try c.decodeIfPresent(Bool.self, forKey: .rememberPassword) ?? fallback.rememberPassword
         rdpClientPath = try c.decodeIfPresent(String.self, forKey: .rdpClientPath) ?? fallback.rdpClientPath
         rdpClientArgs = try c.decodeIfPresent(String.self, forKey: .rdpClientArgs) ?? fallback.rdpClientArgs
@@ -229,6 +284,7 @@ extension AppSettings {
         hiddenColumns = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenColumns) ?? fallback.hiddenColumns
         columnOrder = try c.decodeIfPresent([String].self, forKey: .columnOrder) ?? fallback.columnOrder
         listFontSize = try c.decodeIfPresent(ListFontSize.self, forKey: .listFontSize) ?? fallback.listFontSize
+        columnWidths = try c.decodeIfPresent([String: Double].self, forKey: .columnWidths) ?? fallback.columnWidths
         syncEndpoint = try c.decodeIfPresent(String.self, forKey: .syncEndpoint) ?? fallback.syncEndpoint
         syncToken = try c.decodeIfPresent(String.self, forKey: .syncToken) ?? fallback.syncToken
         sidebarCollapsed = try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? fallback.sidebarCollapsed
@@ -286,6 +342,22 @@ extension AppSettings {
         let order = allColumnsInOrder
         guard let index = order.firstIndex(of: column) else { return false }
         return order.indices.contains(up ? index - 1 : index + 1)
+    }
+
+    /// 列宽：用户拖拽值优先，否则用列默认宽；名称列无拖拽值时返回 0（表示保持弹性）
+    func columnWidth(_ column: AssetColumn) -> CGFloat {
+        if let stored = columnWidths[column.rawValue] {
+            return min(max(CGFloat(stored), column.minWidth), AssetColumn.maxWidth)
+        }
+        return column.width ?? 0
+    }
+
+    mutating func setColumnWidth(_ width: CGFloat, for column: AssetColumn) {
+        columnWidths[column.rawValue] = Double(min(max(width, column.minWidth), AssetColumn.maxWidth))
+    }
+
+    mutating func resetColumnWidths() {
+        columnWidths.removeAll()
     }
 
     /// 已启用保护口令且持有所需凭据

@@ -366,6 +366,27 @@ final class AppModel: ObservableObject {
         assets.filter { $0.templateID == template.id }.count
     }
 
+    /// 批量绑定 / 解绑连接方案模板：`nil` 表示解绑。绑定即持久化，后续连接与参数预览立即生效
+    func assignTemplate(_ templateID: UUID?, to ids: Set<UUID>) {
+        let targets = assets.filter { ids.contains($0.id) }
+        guard !targets.isEmpty else { return }
+        for index in assets.indices where ids.contains(assets[index].id) {
+            assets[index].templateID = templateID
+        }
+        saveAssets()
+        let n = "\(targets.count)"
+        if let template = template(id: templateID) {
+            setStatus(
+                L("已为 {n} 台资产设定模板「{v}」")
+                    .replacingOccurrences(of: "{n}", with: n)
+                    .replacingOccurrences(of: "{v}", with: template.name),
+                kind: .success
+            )
+        } else {
+            setStatus(L("已解绑 {n} 台资产的模板").replacingOccurrences(of: "{n}", with: n), kind: .success)
+        }
+    }
+
     // MARK: - 凭据
 
     func password(for asset: Asset) -> String? {
@@ -494,7 +515,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - 建连
 
-    func connect(_ asset: Asset, switchToWorkspace: Bool = false) {
+    func connect(_ asset: Asset) {
         guard !asset.host.isEmpty else {
             presentDiagnostic(
                 Diagnostic(cause: L("该资产缺少主机地址，无法建立连接。"), suggestions: [L("在资产编辑中补全「主机」字段后重试")]),
@@ -531,7 +552,6 @@ final class AppModel: ObservableObject {
         }
 
         markConnected(asset)
-        if switchToWorkspace { nav = .workspace }
         setStatus(L("已发起连接：{v}").replacingOccurrences(of: "{v}", with: asset.displayName), kind: .success)
     }
 
