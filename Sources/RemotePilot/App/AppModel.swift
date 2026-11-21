@@ -96,37 +96,48 @@ final class AppModel: ObservableObject {
     /// 工作台「全屏」：进入原生全屏并隐藏侧边栏、顶部命令栏与标签页头
     @Published var immersiveFullScreen = false
 
-    /// 进入沉浸全屏。窗口样式留到动画结束后再改（见 applyImmersiveChrome）：
+    /// 本次全屏是否由工作台「全屏」按钮发起（Esc / 绿灯退出不算沉浸模式）
+    private var immersiveIntent = false
+
+    /// 供 RootView 在全屏通知里判断是否要走沉浸模式
+    var immersiveRequested: Bool { immersiveIntent }
+
+    private var activeWindow: NSWindow? {
+        NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible })
+    }
+
+    /// 进入沉浸全屏。窗口样式与工具栏状态都留到动画结束后再改（见 applyImmersiveChrome）：
     /// 切换过程中动工具栏会让 AppKit 直接中止全屏，表现为「闪一下又弹回来」。
     /// 已在全屏时再调用即退出：交给系统退出，复原由 didExitFullScreenNotification 触发 endImmersiveFullScreen。
     func toggleImmersiveFullScreen() {
-        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
+        guard let window = activeWindow else { return }
         if window.styleMask.contains(.fullScreen) {
+            immersiveIntent = false
             window.toggleFullScreen(nil)
             return
         }
-        immersiveFullScreen = true
+        immersiveIntent = true
         window.toggleFullScreen(nil)
     }
 
-    /// 全屏动画结束后压平顶部：内容区铺满窗口并撤掉工具栏。
-    /// 只隐藏工具栏内容不够——NSToolbar 本身仍占位，顶部会留出一条空带。
+    /// 全屏动画结束后压平顶部：把原生工具栏整条收掉，内容区才能顶到屏幕最上沿。
+    /// 顶部那条空带就是工具栏的高度（实测：收掉工具栏后窗口的 contentLayoutRect
+    /// 才等于 contentView，此前一直少 40pt）。
+    /// 必须晚一轮 runloop 再收：SwiftUI 会在本轮末尾按自己的状态把 NSToolbar 重新
+    /// 置为可见，同步设置当场就被它覆盖（实测 isVisible 立刻回到 true）。
     func applyImmersiveChrome() {
-        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
-        window.styleMask.insert(.fullSizeContentView)
-        window.titlebarAppearsTransparent = true
-        window.toolbar?.isVisible = false
-        NSApp.presentationOptions.insert([.autoHideToolbar, .autoHideMenuBar])
+        guard let window = activeWindow else { return }
+        NSApp.presentationOptions.insert(.autoHideMenuBar)
+        immersiveFullScreen = true
+        DispatchQueue.main.async { window.toolbar?.isVisible = false }
     }
 
-    /// 退出全屏（Esc / 绿灯 / 再次点全屏）时复原窗口样式
+    /// 退出全屏（Esc / 绿灯 / 再次点全屏）时复原工具栏
     func endImmersiveFullScreen() {
+        immersiveIntent = false
+        NSApp.presentationOptions.remove(.autoHideMenuBar)
+        activeWindow?.toolbar?.isVisible = true
         immersiveFullScreen = false
-        NSApp.presentationOptions.remove([.autoHideToolbar, .autoHideMenuBar])
-        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
-        window.styleMask.remove(.fullSizeContentView)
-        window.titlebarAppearsTransparent = false
-        window.toolbar?.isVisible = true
     }
 
     // MARK: 反馈

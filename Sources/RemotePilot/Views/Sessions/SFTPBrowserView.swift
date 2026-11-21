@@ -47,6 +47,12 @@ final class SFTPWindowManager: NSObject, NSWindowDelegate {
         windows.removeAll()
     }
 
+    /// 事件所在窗口是否属于本管理器的 SFTP 窗口（双击打开的被动监听用它筛选）
+    func owns(_ window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        return windows.values.contains { $0 === window }
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               let assetID = windows.first(where: { $0.value === window })?.key else { return }
@@ -71,6 +77,7 @@ struct SFTPBrowserView: View {
     @State private var showNewFolderPrompt = false
     @State private var showDeletePrompt = false
     @State private var started = false
+    @State private var doubleClickMonitor: Any?
 
     private var service: SFTPService { SFTPService(asset: asset, settings: settings) }
 
@@ -93,6 +100,8 @@ struct SFTPBrowserView: View {
             started = true
             await initialLoad()
         }
+        .onAppear(perform: installDoubleClickOpen)
+        .onDisappear(perform: removeDoubleClickOpen)
         .alert(L("新建文件夹"), isPresented: $showNewFolderPrompt) {
             TextField(L("文件夹名称"), text: $newFolderName)
             Button(L("取消"), role: .cancel) { newFolderName = "" }
@@ -160,7 +169,6 @@ struct SFTPBrowserView: View {
         ZStack {
             List(entries, selection: $selection) { entry in
                 row(entry)
-                    .simultaneousGesture(TapGesture(count: 2).onEnded { open(entry) })
                     .contextMenu {
                         Button(L("打开")) { open(entry) }
                             .disabled(!entry.isDirectory)
@@ -341,6 +349,32 @@ struct SFTPBrowserView: View {
 
     private func navigate(to target: String) {
         Task { await load(target) }
+    }
+
+    // MARK: 双击打开
+
+    /// 行上挂 TapGesture(count: 2) 会让 List 为区分单击/双击把单击选中多押后约 250ms，
+    /// 选起来发涩。改成被动监听鼠标事件：单击仍由 List 即时选中，双击时事件自带 clickCount。
+    private func installDoubleClickOpen() {
+        guard doubleClickMonitor == nil else { return }
+        doubleClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            if event.clickCount == 2, SFTPWindowManager.shared.owns(event.window) {
+                openSelectedEntry()
+            }
+            return event
+        }
+    }
+
+    private func removeDoubleClickOpen() {
+        if let monitor = doubleClickMonitor { NSEvent.removeMonitor(monitor) }
+        doubleClickMonitor = nil
+    }
+
+    /// 双击时打开当前唯一选中的条目（选中多个时不猜）
+    private func openSelectedEntry() {
+        guard selection.count == 1,
+              let entry = entries.first(where: { selection.contains($0.id) }) else { return }
+        open(entry)
     }
 
     private func open(_ entry: SFTPEntry) {

@@ -30,7 +30,6 @@ struct RootView: View {
                 .ignoresSafeArea(.container, edges: model.immersiveFullScreen ? .top : [])
                 // 命令栏挂在原生工具栏上：与红绿灯同一行，且点击事件由 AppKit 托管，不会被窗口拖拽区拦截
                 .toolbar { commandToolbar }
-                .toolbarBackground(model.immersiveFullScreen ? Visibility.hidden : Visibility.visible, for: .windowToolbar)
                 .inspector(isPresented: $model.inspectorPresented) {
                     InspectorPanel()
                         .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
@@ -38,8 +37,6 @@ struct RootView: View {
             }
             // 锁定态：底层完全不可交互，避免通过覆盖层缝隙或键盘操作绕过
             .allowsHitTesting(!model.isLocked)
-            // 沉浸全屏时整条原生工具栏隐藏；必须挂在窗口内容根上，
-            // 挂在 detail 列里时 SwiftUI 不会把它应用到窗口工具栏，顶部会留下一条空带
             .toolbar(model.immersiveFullScreen ? .hidden : .visible, for: .windowToolbar)
 
             if model.isLocked {
@@ -56,7 +53,9 @@ struct RootView: View {
         }
         // 全屏动画结束后再收侧边栏、改窗口样式：切换过程中动这些会让 AppKit 中止全屏
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
-            guard model.immersiveFullScreen else { return }
+            // 绿灯 / ⌃⌘F 进来的全屏同样要压平顶部：AppKit 在全屏下不绘制工具栏，
+            // 却仍按「工具栏可见」保留 40pt，顶部会留下一条空白带把工作台工具条挤下去。
+            guard model.immersiveRequested || model.nav == .workspace else { return }
             columnVisibility = .detailOnly
             model.applyImmersiveChrome()
         }
@@ -111,8 +110,10 @@ struct RootView: View {
 
     @ToolbarContentBuilder
     private var commandToolbar: some ToolbarContent {
-        // 沉浸全屏时连工具栏内容一起撤掉：只把 NSToolbar 设成不可见，AppKit 仍会为它保留顶部高度
-        if showsCommandBar && !model.isLocked && !model.immersiveFullScreen {
+        // 沉浸全屏时不再撤掉工具栏内容：内容增删会让 SwiftUI 在全屏动画途中重建 NSToolbar
+        // （setToolbar: → 窗口重排 → 布局重入 → NSRangeException）。整条工具栏的收放改由
+        // AppModel.applyImmersiveChrome 从 AppKit 侧统一处理。
+        if showsCommandBar && !model.isLocked {
             ToolbarItemGroup(placement: .navigation) {
                 CommandSearchField()
                 CommandViewModeControl()
