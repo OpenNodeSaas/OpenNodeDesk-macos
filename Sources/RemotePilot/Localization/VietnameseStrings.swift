@@ -581,6 +581,8 @@ extension Localization {
         "两次输入的口令不一致。": "Hai lần nhập cụm mật khẩu không khớp.",
         "保护口令设置已保存": "Đã lưu cài đặt cụm mật khẩu bảo vệ",
         "保护口令已关闭": "Đã tắt cụm mật khẩu bảo vệ",
+
+        // 锁定覆盖层
         "已锁定": "Đã khóa",
         "应用因闲置已自动锁定，输入保护口令继续。": "Ứng dụng đã tự động khóa do không hoạt động, nhập cụm mật khẩu bảo vệ để tiếp tục.",
         "口令已连续错误 5 次，请使用恢复口令重置后再解锁。": "Đã sai cụm mật khẩu 5 lần liên tiếp, vui lòng dùng mã khôi phục để đặt lại rồi mở khóa.",
@@ -604,6 +606,8 @@ extension Localization {
         "恢复口令校验通过，请设置新的保护口令。": "Mã khôi phục đã xác minh thành công, vui lòng đặt cụm mật khẩu bảo vệ mới.",
         "重置并解锁": "Đặt lại và mở khóa",
         "本地数据已清空，保护口令已关闭": "Dữ liệu cục bộ đã được xóa, cụm mật khẩu bảo vệ đã tắt",
+
+        // 恢复口令展示
         "你的恢复口令": "Mã khôi phục của bạn",
         "保护口令已设置。请把恢复口令保存在安全处以备忘记口令时重置。": "Cụm mật khẩu bảo vệ đã được đặt. Hãy lưu mã khôi phục ở nơi an toàn để dùng khi quên cụm mật khẩu.",
         "保护口令已重置。旧的恢复口令已作废，请保存这串新的恢复口令。": "Cụm mật khẩu bảo vệ đã được đặt lại. Mã khôi phục cũ đã hết hiệu lực, hãy lưu mã khôi phục mới này.",

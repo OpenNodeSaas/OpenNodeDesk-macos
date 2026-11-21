@@ -581,6 +581,8 @@ extension Localization {
         "两次输入的口令不一致。": "Las frases de acceso introducidas no coinciden.",
         "保护口令设置已保存": "Configuración de la frase de acceso de protección guardada",
         "保护口令已关闭": "Frase de acceso de protección desactivada",
+
+        // 锁定覆盖层
         "已锁定": "Bloqueado",
         "应用因闲置已自动锁定，输入保护口令继续。": "La aplicación se bloqueó automáticamente por inactividad; introduce la frase de acceso para continuar.",
         "口令已连续错误 5 次，请使用恢复口令重置后再解锁。": "La frase de acceso falló 5 veces seguidas; usa el código de recuperación para restablecerla y luego desbloquea.",
@@ -604,6 +606,8 @@ extension Localization {
         "恢复口令校验通过，请设置新的保护口令。": "Código de recuperación verificado. Configura una nueva frase de acceso de protección.",
         "重置并解锁": "Restablecer y desbloquear",
         "本地数据已清空，保护口令已关闭": "Datos locales borrados; la frase de acceso de protección está desactivada",
+
+        // 恢复口令展示
         "你的恢复口令": "Tu código de recuperación",
         "保护口令已设置。请把恢复口令保存在安全处以备忘记口令时重置。": "Tu frase de acceso de protección está configurada. Guarda el código de recuperación en un lugar seguro por si olvidas la frase de acceso.",
         "保护口令已重置。旧的恢复口令已作废，请保存这串新的恢复口令。": "Tu frase de acceso de protección se ha restablecido. El código de recuperación anterior ya no es válido; guarda este nuevo código de recuperación.",
